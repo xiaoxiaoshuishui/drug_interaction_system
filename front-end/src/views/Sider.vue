@@ -81,18 +81,20 @@
 </template>
 
 <script setup>
-import { ref, reactive, nextTick, onBeforeUnmount } from 'vue';
+import { ref, reactive, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
 import * as echarts from 'echarts';
-// 保持您原本的接口引用路径
 import { dsaPredict } from '../apis/dsas';
+import { useDsaPredictStore } from '../store/dsa';
+
+const store = useDsaPredictStore();
 
 const form = reactive({
-  drug_identifier: '',
-  se_name: ''
+  drug_identifier: store.lastFormData?.drug_identifier || '',
+  se_name: store.lastFormData?.se_name || ''
 });
 
 const loading = ref(false);
-const result = ref(null);
+const result = ref(store.lastResult);
 const errorMessage = ref('');
 
 // ECharts 容器 DOM 引用与实例
@@ -101,9 +103,22 @@ const graphChartRef = ref(null);
 let radarChartInstance = null;
 let graphChartInstance = null;
 
+// 组件挂载时从 store 恢复图表
+onMounted(async () => {
+  if (result.value) {
+    await nextTick();
+    
+    if (store.lastRadarData) {
+      renderRadar(store.lastRadarData);
+    }
+    if (store.lastGraphData) {
+      renderGraph(store.lastGraphData, store.lastPrediction);
+    }
+  }
+});
+
 const handlePredict = async () => {
   errorMessage.value = '';
-  result.value = null;
   
   if (!form.drug_identifier.trim() || !form.se_name.trim()) {
     errorMessage.value = '请完整填写药物标识和副作用名称！';
@@ -117,7 +132,8 @@ const handlePredict = async () => {
     if (res && res.success !== false) {
       result.value = res;
       
-      // 等待 Vue 将 v-show 的 DOM 渲染出来后，再初始化图表
+      store.setResult(res, form);
+      
       await nextTick();
       if (res.radar_data) renderRadar(res.radar_data);
       if (res.graph_data) renderGraph(res.graph_data, res.prediction);
@@ -131,55 +147,86 @@ const handlePredict = async () => {
   }
 };
 
-// ==============================
-// ECharts 渲染逻辑
-// ==============================
+// 清除历史数据
+const clearHistory = () => {
+  store.clearResult();
+  result.value = null;
+  form.drug_identifier = '';
+  form.se_name = '';
+  
+  // 销毁图表实例
+  if (radarChartInstance) {
+    radarChartInstance.dispose();
+    radarChartInstance = null;
+  }
+  if (graphChartInstance) {
+    graphChartInstance.dispose();
+    graphChartInstance = null;
+  }
+};
 
 // 渲染雷达图
 const renderRadar = (radarData) => {
   if (!radarChartRef.value) return;
   if (!radarChartInstance) radarChartInstance = echarts.init(radarChartRef.value);
 
-  // 解析后端传来的 radar_data
   const indicators = radarData.map(item => ({ 
     name: item.name, 
-    max: item.max || undefined 
+    max: 1,
   }));
+  
   const values = radarData.map(item => item.value);
 
   const option = {
-    tooltip: { trigger: 'item' },
+    tooltip: { 
+      trigger: 'item',
+      formatter: function(params) {
+        // 自定义 formatter：将 indicator 的名称与 params.value 数组中的值一一对应
+        let result = `<strong>${params.name || '特征激活强度'}</strong><br/>`;
+        indicators.forEach((indicator, index) => {
+          result += `${indicator.name}: ${params.value[index]}<br/>`;
+        });
+        return result;
+      }
+    },
     radar: {
       indicator: indicators,
       shape: 'circle',
       splitNumber: 4,
-      axisName: { color: '#495057', fontWeight: 'bold' },
+      center: ['50%', '50%'],
+      radius: '65%',
+      axisName: { 
+        color: '#495057', 
+        fontSize: 11
+      },
       splitArea: {
         areaStyle: { 
-          color: ['#f8f9fa', '#e9ecef', '#dee2e6', '#ced4da'], 
-          shadowColor: 'rgba(0, 0, 0, 0.05)', 
-          shadowBlur: 10 
+          color: ['#f8f9fa', '#e9ecef']
         }
       },
-      axisLine: { lineStyle: { color: '#adb5bd' } },
-      splitLine: { lineStyle: { color: '#adb5bd' } }
+      axisLabel: {
+        formatter: (value) => value.toFixed(2)
+      }
     },
     series: [{
-      name: '特征贡献度',
       type: 'radar',
       data: [{
+        name: '特征激活强度', // 👈 增加数据组的名称
         value: values,
-        name: '特征激活 L2 Norm',
-        itemStyle: { color: '#339af0' },
         areaStyle: { 
-          color: new echarts.graphic.RadialGradient(0.5, 0.5, 1, [
-            { offset: 0, color: 'rgba(51, 154, 240, 0.1)' },
-            { offset: 1, color: 'rgba(51, 154, 240, 0.6)' }
-          ])
+          color: 'rgba(51, 154, 240, 0.3)'
+        },
+        lineStyle: {
+          color: '#339af0',
+          width: 2
+        },
+        itemStyle: { 
+          color: '#228be6'
         }
       }]
     }]
   };
+  
   radarChartInstance.setOption(option);
 };
 
@@ -188,7 +235,6 @@ const renderGraph = (graphData, prediction) => {
   if (!graphChartRef.value) return;
   if (!graphChartInstance) graphChartInstance = echarts.init(graphChartRef.value);
 
-  // 1=高危风险(红线)，0=安全(绿线)
   const isRisk = prediction === 1;
   const mainLinkColor = isRisk ? '#fa5252' : '#40c057';
 
@@ -208,7 +254,7 @@ const renderGraph = (graphData, prediction) => {
         edgeLength: 120,
         gravity: 0.1
       },
-      roam: true, // 允许鼠标缩放和平移
+      roam: true,
       label: { show: true, position: 'right', formatter: '{b}' },
       edgeSymbol: ['none', 'arrow'],
       edgeSymbolSize: [4, 10],
@@ -219,7 +265,6 @@ const renderGraph = (graphData, prediction) => {
       ],
       data: graphData.nodes,
       links: graphData.links.map(link => {
-        // 判断是否是主查询节点之间的连线
         const isMainLink = link.source.includes('Drug_') && link.target.includes('SE_');
         return {
           ...link,
@@ -236,16 +281,29 @@ const renderGraph = (graphData, prediction) => {
   graphChartInstance.setOption(option);
 };
 
-// 监听窗口缩放，自适应图表大小
-window.addEventListener('resize', () => {
+// 窗口缩放处理
+const handleResize = () => {
   if (radarChartInstance) radarChartInstance.resize();
   if (graphChartInstance) graphChartInstance.resize();
-});
+};
+
+window.addEventListener('resize', handleResize);
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', () => {});
-  if (radarChartInstance) radarChartInstance.dispose();
-  if (graphChartInstance) graphChartInstance.dispose();
+  window.removeEventListener('resize', handleResize);
+  if (radarChartInstance) {
+    radarChartInstance.dispose();
+    radarChartInstance = null;
+  }
+  if (graphChartInstance) {
+    graphChartInstance.dispose();
+    graphChartInstance = null;
+  }
+});
+
+// 暴露方法给模板使用
+defineExpose({
+  clearHistory
 });
 </script>
 
@@ -259,6 +317,7 @@ onBeforeUnmount(() => {
   min-height: calc(100vh - 48px);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   align-items: flex-start;
+  justify-content: center; /* 未渲染图表时，内容整体居中 */
 }
 
 /* 左侧控制台 */
@@ -269,6 +328,7 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
+  transition: margin 0.3s ease; /* 平滑过渡 */
 }
 
 /* 右侧图表区 */
@@ -277,17 +337,27 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  min-width: 600px; /* 防止屏幕太小时图表挤压 */
+  min-width: 700px; /* 增加最小宽度，给图表更多空间 */
 }
 
+/* 图表盒子 - 双栏布局 */
 .chart-box {
   background: white;
   padding: 20px;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  height: 380px; 
   display: flex;
   flex-direction: column;
+}
+
+/* 特征激活强度图 - 高度稍小 */
+.chart-box:first-child {
+  height: 320px; /* 减小高度 */
+}
+
+/* 局部异质网络拓扑图 - 高度增大，获得更多空间 */
+.chart-box:last-child {
+  height: 500px; /* 增大高度，让网络拓扑图有更多展示空间 */
 }
 
 .chart-box h3 {

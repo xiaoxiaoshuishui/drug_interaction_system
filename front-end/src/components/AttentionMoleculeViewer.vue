@@ -68,9 +68,6 @@ const title = computed(() => {
 const renderHighlightedMolecule = async () => {
   if (!props.smiles || !moleculeContainer.value) return;
   
-  console.log('渲染分子:', props.smiles.substring(0, 30) + '...');
-  console.log('原子权重数据:', props.atomWeights);
-  
   try {
     // 使用全局单例加载 RDKit
     const RDKit = await rdkitLoader.load('https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js');

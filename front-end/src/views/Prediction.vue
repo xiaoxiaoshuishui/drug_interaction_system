@@ -188,23 +188,25 @@
 import { ref, reactive, computed } from 'vue'
 import { showToast } from 'vant'
 import { standardPredict } from '../apis/ddis'
-import { REACTION_TYPE_MAP } from '../utils/reactionType'  // 导入反应类型映射
-import AttentionMoleculeViewer from '../components/AttentionMoleculeViewer.vue'  // 导入注意力分子可视化组件 
+import { useDdiStore } from '../store/ddi'
+import { REACTION_TYPE_MAP } from '../utils/reactionType'
+import AttentionMoleculeViewer from '../components/AttentionMoleculeViewer.vue'
 
 const loading = ref(false)
 const showError = ref(false)
 const errorMessage = ref('')
-const predictionResult = ref(null)
 
+const ddiStore = useDdiStore()
 // 表单数据
-const formData = reactive({
+const formData = ddiStore.formData.drug_a_name ? reactive(ddiStore.formData) : reactive({
   smiles_a: 'OC(C(=O)O[C@H]1C[N+]2(CCCOC3=CC=CC=C3)CCC1CC2)(C1=CC=CS1)C1=CC=CS1',
   smiles_b: 'C[N+]1(C)[C@H]2C[C@@H](C[C@@H]1[C@H]1O[C@@H]21)OC(=O)[C@H](CO)C1=CC=CC=C1',
   drug_a_name: '阿地溴铵',
   drug_b_name: '甲基东莨菪碱',
-  interaction_type_id: '0'  // 默认为0，让用户选择
+  interaction_type_id: '0'
 })
 
+const predictionResult = ref(ddiStore.predictionResult || null);
 // 处理预测
 const handlePredict = async () => {
   // 表单验证
@@ -225,6 +227,8 @@ const handlePredict = async () => {
   try {
     const result = await standardPredict(params)
     predictionResult.value = result
+    ddiStore.predictionResult = result;
+    ddiStore.formData = { ...formData };
     showToast({
       type: 'success',
       message: '预测完成'
