@@ -1,0 +1,123 @@
+# ============================================
+# IDE 配置目录
+# ============================================
+.idea/
+.vscode/
+*.code-workspace
+
+# ============================================
+# 项目临时文件
+# ============================================
+structure.txt
+*.log
+*.tmp
+
+# ============================================
+# 前端 (front-end)
+# ============================================
+front-end/node_modules/
+front-end/dist/
+front-end/dist-ssr/
+front-end/.env.local
+front-end/.env.*.local
+front-end/npm-debug.log*
+front-end/yarn-debug.log*
+front-end/yarn-error.log*
+front-end/pnpm-debug.log*
+front-end/*.log
+
+# ============================================
+# 后端 (web_backend)
+# ============================================
+# 虚拟环境
+web_backend/.venv/
+web_backend/venv/
+web_backend/ENV/
+web_backend/env/
+
+# Python 缓存
+web_backend/__pycache__/
+web_backend/*/__pycache__/
+web_backend/*/*/__pycache__/
+web_backend/*.pyc
+web_backend/*.pyo
+web_backend/*.pyd
+
+# 数据库文件
+web_backend/*.db
+web_backend/*.sqlite
+web_backend/*.sqlite3
+
+# 环境配置
+web_backend/.env
+web_backend/config/local.py
+
+# ============================================
+# 模型服务 (model_service)
+# ============================================
+# 虚拟环境
+model_service/.venv/
+model_service/venv/
+model_service/ENV/
+model_service/env/
+
+# ============================================
+# 模型文件和数据文件（超大文件）
+# ============================================
+**/*.pkl
+**/*.h5
+**/*.pt
+**/*.pth
+**/output/
+**/checkpoints/
+**/runs/
+**/*.csv
+**/*.xlsx
+**/*.xls
+**/dataset/
+**/data/
+**/twosides_test/
+
+# ============================================
+# Python 缓存文件
+# ============================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+**/__pycache__/
+**/*.pyc
+
+# 训练好的模型文件
+model_service/*.pkl
+model_service/*.h5
+model_service/*.pt
+model_service/*.pth
+model_service/checkpoints/
+model_service/runs/
+
+# 数据集（如果不想上传数据文件）
+model_service/**/dataset/
+model_service/**/drugbank_test/drugbank/
+model_service/**/drugbank_test/inductive/
+model_service/**/data/
+model_service/**/output/
+model_service/**/*.csv
+model_service/**/*.xlsx
+
+# 环境配置
+model_service/.env
+
+# ============================================
+# 通用 Python 规则（覆盖所有子目录）
+# ============================================
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.venv/
+**/venv/
+**/ENV/
+**/env/
+**/.env
+**/*.log
