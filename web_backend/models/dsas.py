@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, Index
 from sqlalchemy.orm import DeclarativeBase
-class Base(DeclarativeBase):
-    pass
+from models.users import Base
 
 class DSADrugNode(Base):
     """MFGNN-DSA 药物节点映射表"""

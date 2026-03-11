@@ -60,7 +60,7 @@ const menuTitleMap = {
   'dashboard': '仪表板',
   'data': '数据分析',
   'prediction': '药物预测',
-  'profile': '个人资料',
+  'history': '历史记录',
   'sider': '不良预测',
   'record': '预测记录'
 }
@@ -80,7 +80,7 @@ const menuSections = ref([
     title: 'DNS-DDI',
     items: [
       { id: 'prediction', text: '药物预测', icon: 'setting-o', badge: '' },
-      { id: 'profile', text: '个人资料', icon: 'user-o', badge: '' },
+      { id: 'history', text: '历史记录', icon: 'user-o', badge: '' },
     ]
   },
   {
@@ -114,7 +114,7 @@ const setActiveMenu = (menuId) => {
     'dashboard': '/home/dashboard',
     'data': '/home/data',
     'prediction': '/ddi/prediction',
-    'profile': '/ddi/profile',
+    'history': '/ddi/history',
     'sider': '/dsa/sider',
     'record': '/dsa/record'
   };

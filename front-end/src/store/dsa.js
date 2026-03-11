@@ -43,7 +43,7 @@ export const useDsaPredictStore = defineStore('dsaPredict', {
   },
 
   persist: {
-    key: 'dsa-predict',  // 统一使用这个键名
+    key: 'dsa-predict',
     storage: localStorage,
     paths: ['lastResult', 'lastFormData', 'lastRadarData', 'lastGraphData', 'lastPrediction']
   }

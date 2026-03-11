@@ -4,10 +4,9 @@ from sqlalchemy import (
     Column, Integer, String, Float, Text, DateTime,
     ForeignKey, Enum, JSON, Index, Boolean
 )
-from sqlalchemy.orm import relationship, DeclarativeBase
+from sqlalchemy.orm import relationship
+from models.users import Base
 
-class Base(DeclarativeBase):
-    pass
 
 
 class DDIPrediction(Base):
@@ -22,7 +21,7 @@ class DDIPrediction(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, comment="预测ID")
 
     # 用户关联
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("user.id"), nullable=True)
     user = relationship("User", back_populates="ddi_predictions")
 
     # 药物信息

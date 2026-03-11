@@ -7,7 +7,7 @@
         <span class="breadcrumb-item active">{{ currentMenuTitle }}</span>
       </div>
     </div>
-    
+
     <div class="topbar-right">
       <div class="topbar-actions">
         <div class="user-dropdown-wrapper">
@@ -24,18 +24,21 @@
               </div>
             </div>
             <div class="dropdown-menu">
-              <a href="#" class="dropdown-item">
-                个人资料
+              <a href="javascript:void(0)" class="dropdown-item" @click="router.push('/profile')">
+                <i class="fas fa-user"></i>
+                <span>个人资料</span>
               </a>
-              <a href="#" class="dropdown-item">
-                账户设置
+
+              <a href="javascript:void(0)" class="dropdown-item" @click="router.push('/account')">
+                <i class="fas fa-cog"></i>
+                <span>账户设置</span>
               </a>
-              <a href="#" class="dropdown-item">
-                帮助中心
-              </a>
+
               <div class="dropdown-divider"></div>
-              <a href="#" class="dropdown-item logout" @click.prevent="onLogout">
-                退出登录
+
+              <a href="javascript:void(0)" class="dropdown-item text-danger" @click="handleLogout">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>退出登录</span>
               </a>
             </div>
           </div>
@@ -47,7 +50,9 @@
 
 <script setup>
 import { ref, defineProps, defineEmits, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import ADR2 from '../assets/ADR2.png';
+const router = useRouter()
 const props = defineProps({
   sidebarCollapsed: {
     type: Boolean,
@@ -79,7 +84,8 @@ const toggleUserDropdown = () => {
   showUserDropdown.value = !showUserDropdown.value
 }
 
-const onLogout = () => {
+const handleLogout = () => {
+  localStorage.removeItem('user')
   emit('logout')
 }
 
@@ -264,6 +270,10 @@ body.dark-mode .dropdown-header {
   transition: all 0.3s ease;
 }
 
+.text-danger {
+  color: #ef4444;
+}
+
 body.dark-mode .dropdown-item {
   color: white;
 }
@@ -294,7 +304,7 @@ body.dark-mode .dropdown-divider {
   .topbar {
     padding: 0 15px;
   }
-  
+
   .user-name-small {
     display: none;
   }

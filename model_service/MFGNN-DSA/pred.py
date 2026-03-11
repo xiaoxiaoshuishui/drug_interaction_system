@@ -126,9 +126,7 @@ async def predict(request: PredictionRequest):
 
         prediction = 1 if score >= 0.5 else 0
 
-        # ==========================================
         # 3. 提取真实的多视图特征密度 (供雷达图使用)
-        # ==========================================
         # 计算各个特征矩阵在当前输入节点上的 L2 范数（代表信息量大小）
         d_hin_norm = float(torch.norm(drug_HIN[request.drug_index]).cpu())
         d_pc_norm = float(torch.norm(drug_PC[request.drug_index]).cpu())
