@@ -9,22 +9,12 @@
       <div class="form-container">
         <div class="form-group">
           <label>药物名称 / SMILES:</label>
-          <input 
-            v-model="form.drug_identifier" 
-            type="text" 
-            placeholder="例如: Cetrorelix" 
-            :disabled="loading"
-          />
+          <input v-model="form.drug_identifier" type="text" placeholder="例如: Cetrorelix(西曲瑞克)" :disabled="loading" />
         </div>
-        
+
         <div class="form-group">
           <label>副作用名称:</label>
-          <input 
-            v-model="form.se_name" 
-            type="text" 
-            placeholder="例如: rash" 
-            :disabled="loading"
-          />
+          <input v-model="form.se_name" type="text" placeholder="例如: rash(皮疹)" :disabled="loading" />
         </div>
 
         <button class="predict-btn" @click="handlePredict" :disabled="loading">
@@ -32,15 +22,15 @@
         </button>
       </div>
 
-      <div v-if="errorMessage" class="error-msg">
-        ⚠️ {{ errorMessage }}
+      <div v-if="statusMsg" class="status-msg" :class="statusType">
+        {{ statusMsg }}
       </div>
 
       <div v-if="result" class="result-card">
         <h3>核心预测结论</h3>
         <div class="result-item">
           <span>识别药物:</span>
-          <strong>{{ result.drug_name }}</strong> 
+          <strong>{{ result.drug_name }}</strong>
           <span class="index-tag">(Idx: {{ result.drug_index }})</span>
         </div>
         <div class="result-item">
@@ -48,7 +38,7 @@
           <strong>{{ result.se_name }}</strong>
           <span class="index-tag">(Idx: {{ result.se_index }})</span>
         </div>
-        
+
         <div class="divider"></div>
 
         <div class="result-item">
@@ -65,7 +55,7 @@
     </div>
 
     <div class="visualization-panel" v-show="result">
-      
+
       <div class="chart-box">
         <h3>特征激活强度 (Attention/Norm)</h3>
         <div ref="radarChartRef" class="echarts-container"></div>
@@ -95,7 +85,8 @@ const form = reactive({
 
 const loading = ref(false);
 const result = ref(store.lastResult);
-const errorMessage = ref('');
+const statusMsg = ref('');
+const statusType = ref(''); // 可选值：'loading', 'success', 'error'
 
 // ECharts 容器 DOM 引用与实例
 const radarChartRef = ref(null);
@@ -107,7 +98,7 @@ let graphChartInstance = null;
 onMounted(async () => {
   if (result.value) {
     await nextTick();
-    
+
     if (store.lastRadarData) {
       renderRadar(store.lastRadarData);
     }
@@ -118,30 +109,41 @@ onMounted(async () => {
 });
 
 const handlePredict = async () => {
-  errorMessage.value = '';
+  statusMsg.value = '';
   
   if (!form.drug_identifier.trim() || !form.se_name.trim()) {
-    errorMessage.value = '请完整填写药物标识和副作用名称！';
+    statusMsg.value = '⚠️ 请完整填写药物和副作用名称！';
+    statusType.value = 'error';
     return;
   }
 
   loading.value = true;
+  statusMsg.value = '🔄 预测中...';
+  statusType.value = 'loading';
+  
   try {
     const res = await dsaPredict(form.drug_identifier, form.se_name);
     
     if (res && res.success !== false) {
-      result.value = res;
+      statusMsg.value = '✅ 预测完成！';
+      statusType.value = 'success';
+      setTimeout(() => {
+        if (statusType.value === 'success') statusMsg.value = '';
+      }, 3000);
       
+      result.value = res;
       store.setResult(res, form);
       
       await nextTick();
       if (res.radar_data) renderRadar(res.radar_data);
       if (res.graph_data) renderGraph(res.graph_data, res.prediction);
     } else {
-      errorMessage.value = res?.error_message || '预测失败，请重试';
+      statusMsg.value = '❌ ' + (res?.error_message || '预测失败');
+      statusType.value = 'error';
     }
   } catch (error) {
-    errorMessage.value = error.message || '网络或服务器错误';
+    statusMsg.value = '❌ 网络或服务器错误';
+    statusType.value = 'error';
   } finally {
     loading.value = false;
   }
@@ -153,7 +155,7 @@ const clearHistory = () => {
   result.value = null;
   form.drug_identifier = '';
   form.se_name = '';
-  
+
   // 销毁图表实例
   if (radarChartInstance) {
     radarChartInstance.dispose();
@@ -170,17 +172,17 @@ const renderRadar = (radarData) => {
   if (!radarChartRef.value) return;
   if (!radarChartInstance) radarChartInstance = echarts.init(radarChartRef.value);
 
-  const indicators = radarData.map(item => ({ 
-    name: item.name, 
+  const indicators = radarData.map(item => ({
+    name: item.name,
     max: 1,
   }));
-  
+
   const values = radarData.map(item => item.value);
 
   const option = {
-    tooltip: { 
+    tooltip: {
       trigger: 'item',
-      formatter: function(params) {
+      formatter: function (params) {
         // 自定义 formatter：将 indicator 的名称与 params.value 数组中的值一一对应
         let result = `<strong>${params.name || '特征激活强度'}</strong><br/>`;
         indicators.forEach((indicator, index) => {
@@ -195,12 +197,12 @@ const renderRadar = (radarData) => {
       splitNumber: 4,
       center: ['50%', '50%'],
       radius: '65%',
-      axisName: { 
-        color: '#495057', 
+      axisName: {
+        color: '#495057',
         fontSize: 11
       },
       splitArea: {
-        areaStyle: { 
+        areaStyle: {
           color: ['#f8f9fa', '#e9ecef']
         }
       },
@@ -213,20 +215,20 @@ const renderRadar = (radarData) => {
       data: [{
         name: '特征激活强度', // 👈 增加数据组的名称
         value: values,
-        areaStyle: { 
+        areaStyle: {
           color: 'rgba(51, 154, 240, 0.3)'
         },
         lineStyle: {
           color: '#339af0',
           width: 2
         },
-        itemStyle: { 
+        itemStyle: {
           color: '#228be6'
         }
       }]
     }]
   };
-  
+
   radarChartInstance.setOption(option);
 };
 
@@ -240,17 +242,17 @@ const renderGraph = (graphData, prediction) => {
 
   const option = {
     tooltip: { formatter: '{b}' },
-    legend: { 
-      data: ['当前查询药物', '当前查询副作用', '底层特征相似节点'], 
-      bottom: 0 
+    legend: {
+      data: ['当前查询药物', '当前查询副作用', '底层特征相似节点'],
+      bottom: 0
     },
     animationDurationUpdate: 1500,
     animationEasingUpdate: 'quinticInOut',
     series: [{
       type: 'graph',
       layout: 'force',
-      force: { 
-        repulsion: 400, 
+      force: {
+        repulsion: 400,
         edgeLength: 120,
         gravity: 0.1
       },
@@ -317,7 +319,8 @@ defineExpose({
   min-height: calc(100vh - 48px);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   align-items: flex-start;
-  justify-content: center; /* 未渲染图表时，内容整体居中 */
+  justify-content: center;
+  /* 未渲染图表时，内容整体居中 */
 }
 
 /* 左侧控制台 */
@@ -328,7 +331,8 @@ defineExpose({
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
-  transition: margin 0.3s ease; /* 平滑过渡 */
+  transition: margin 0.3s ease;
+  /* 平滑过渡 */
 }
 
 /* 右侧图表区 */
@@ -337,7 +341,8 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 24px;
-  min-width: 700px; /* 增加最小宽度，给图表更多空间 */
+  min-width: 700px;
+  /* 增加最小宽度，给图表更多空间 */
 }
 
 /* 图表盒子 - 双栏布局 */
@@ -352,12 +357,14 @@ defineExpose({
 
 /* 特征激活强度图 - 高度稍小 */
 .chart-box:first-child {
-  height: 320px; /* 减小高度 */
+  height: 320px;
+  /* 减小高度 */
 }
 
 /* 局部异质网络拓扑图 - 高度增大，获得更多空间 */
 .chart-box:last-child {
-  height: 500px; /* 增大高度，让网络拓扑图有更多展示空间 */
+  height: 500px;
+  /* 增大高度，让网络拓扑图有更多展示空间 */
 }
 
 .chart-box h3 {
@@ -374,24 +381,123 @@ defineExpose({
 }
 
 /* 原始表单与卡片样式调整 */
-.header { margin-bottom: 24px; }
-.header h2 { margin: 0 0 8px 0; font-size: 20px; color: #2c3e50; }
-.subtitle { margin: 0; font-size: 13px; color: #6c757d; }
-.form-group { margin-bottom: 16px; }
-.form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #495057; font-size: 14px; }
-.form-group input { width: 100%; padding: 10px 12px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; box-sizing: border-box; transition: border-color 0.2s; }
-.form-group input:focus { outline: none; border-color: #4dabf7; box-shadow: 0 0 0 3px rgba(77, 171, 247, 0.2); }
-.predict-btn { width: 100%; padding: 12px; background-color: #228be6; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background-color 0.2s; margin-top: 8px; }
-.predict-btn:hover:not(:disabled) { background-color: #1c7ed6; }
-.predict-btn:disabled { background-color: #a5d8ff; cursor: not-allowed; }
-.error-msg { margin-top: 16px; padding: 12px; background-color: #fff5f5; color: #e03131; border-left: 4px solid #e03131; border-radius: 4px; font-size: 14px; }
+.header {
+  margin-bottom: 24px;
+}
 
-.result-card { margin-top: 24px; padding: 16px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; }
-.result-card h3 { margin: 0 0 16px 0; font-size: 16px; color: #343a40; border-bottom: 2px solid #e9ecef; padding-bottom: 8px; }
-.result-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 14px; }
-.result-item span:first-child { color: #868e96; }
-.index-tag { font-size: 12px; color: #adb5bd; margin-left: 4px; }
-.divider { height: 1px; background-color: #dee2e6; margin: 16px 0; }
-.risk-high { color: #e03131; }
-.risk-safe { color: #2b8a3e; }
+.header h2 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  color: #2c3e50;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #495057;
+  font-size: 14px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #4dabf7;
+  box-shadow: 0 0 0 3px rgba(77, 171, 247, 0.2);
+}
+
+.predict-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: #228be6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 8px;
+}
+
+.predict-btn:hover:not(:disabled) {
+  background-color: #1c7ed6;
+}
+
+.predict-btn:disabled {
+  background-color: #a5d8ff;
+  cursor: not-allowed;
+}
+
+.status-msg { margin-top: 16px; padding: 10px 12px; border-radius: 4px; font-size: 14px; font-weight: 500; }
+.status-msg.error { background-color: #fff5f5; color: #e03131; border-left: 4px solid #e03131; }
+.status-msg.loading { background-color: #e7f5ff; color: #1971c2; border-left: 4px solid #339af0; }
+.status-msg.success { background-color: #ebfbee; color: #2b8a3e; border-left: 4px solid #40c057; }
+
+.result-card {
+  margin-top: 24px;
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.result-card h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: #343a40;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 8px;
+}
+
+.result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.result-item span:first-child {
+  color: #868e96;
+}
+
+.index-tag {
+  font-size: 12px;
+  color: #adb5bd;
+  margin-left: 4px;
+}
+
+.divider {
+  height: 1px;
+  background-color: #dee2e6;
+  margin: 16px 0;
+}
+
+.risk-high {
+  color: #e03131;
+}
+
+.risk-safe {
+  color: #2b8a3e;
+}
 </style>

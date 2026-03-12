@@ -16,13 +16,11 @@
         :userAvatar="userAvatar" 
         :darkMode="darkMode" 
         :showNotifications="showNotifications" 
-        :unreadNotifications="unreadNotifications"
         :currentMenuTitle="currentMenuTitle"
         @toggle-sidebar="toggleSidebar" 
         @toggle-dark-mode="toggleDarkMode" 
         @toggle-notifications="toggleNotifications" 
         @toggle-user-dropdown="toggleUserDropdown" 
-        @mark-all-as-read="markAllAsRead" 
         @logout="logout"
       />
       <router-view></router-view>
@@ -53,12 +51,12 @@ const userAvatar = ref(userStore.userInfo?.avatar || ADR2)
 // 顶部导航栏状态
 const darkMode = ref(false)
 const showNotifications = ref(false)
-const unreadNotifications = ref(3)
 const showUserDropdown = ref(false)
 const currentMenuTitle = ref('仪表板')
 const menuTitleMap = {
+  'introduction': '介绍',
   'dashboard': '仪表板',
-  'data': '数据分析',
+  // 'data': '数据分析',
   'prediction': '药物预测',
   'history': '历史记录',
   'sider': '不良预测',
@@ -71,8 +69,9 @@ const menuSections = ref([
     id: 1,
     title: '主导航',
     items: [
+      { id: 'introduction', text: '介绍', icon: 'info-o', badge: '' },
       { id: 'dashboard', text: '仪表板', icon: 'home-o', badge: '' },
-      { id: 'data', text: '数据分析', icon: 'bar-chart-o', badge: '新' },
+      // { id: 'data', text: '数据分析', icon: 'bar-chart-o', badge: '新' },
     ]
   },
   {
@@ -93,15 +92,6 @@ const menuSections = ref([
   }
 ])
 
-// 通知数据
-const notifications = ref([
-  { id: 1, title: '新用户注册', time: '10分钟前', icon: 'fas fa-user-plus', read: false },
-  { id: 2, title: '订单支付成功', time: '30分钟前', icon: 'fas fa-check-circle', read: false },
-  { id: 3, title: '系统备份完成', time: '2小时前', icon: 'fas fa-save', read: true },
-  { id: 4, title: '安全提醒', time: '5小时前', icon: 'fas fa-exclamation-triangle', read: false },
-  { id: 5, title: '版本更新', time: '昨天', icon: 'fas fa-upload', read: true },
-])
-
 // 方法
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -109,10 +99,11 @@ const toggleSidebar = () => {
 
 const setActiveMenu = (menuId) => {
   activeMenu.value = menuId
-  currentMenuTitle.value = menuTitleMap[menuId] || '仪表板'
+  currentMenuTitle.value = menuTitleMap[menuId] || '介绍'
   const routeMap = {
+    'introduction': '/home/introduction',
     'dashboard': '/home/dashboard',
-    'data': '/home/data',
+    // 'data': '/home/data',
     'prediction': '/ddi/prediction',
     'history': '/ddi/history',
     'sider': '/dsa/sider',
@@ -125,8 +116,7 @@ const setActiveMenu = (menuId) => {
     router.push(targetRoute);
   } else {
     console.warn(`未找到菜单项 ${menuId} 对应的路由`);
-    // 默认跳转到仪表板
-    router.push('/home/dashboard');
+    router.push('/home/introduction');
   }
 }
 
@@ -149,13 +139,6 @@ const toggleUserDropdown = () => {
   showUserDropdown.value = !showUserDropdown.value
   // 关闭通知下拉菜单
   showNotifications.value = false
-}
-
-const markAllAsRead = () => {
-  notifications.value.forEach(notification => {
-    notification.read = true
-  })
-  unreadNotifications.value = 0
 }
 
 const logout = async () => {
@@ -231,8 +214,6 @@ onMounted(async() => {
     console.error('检查登录状态时出错:', error)
     router.push('/login')
   }
-  // 计算未读通知数量
-  unreadNotifications.value = notifications.value.filter(n => !n.read).length
 })
 
 onUnmounted(() => {
@@ -242,6 +223,10 @@ onUnmounted(() => {
 // 监听路由变化，更新当前菜单标题
 watch(() => route.path, (newPath) => {
   // 根据路由路径更新当前菜单标题
+  if (newPath.includes('/home/introduction')) {
+    currentMenuTitle.value = '介绍';
+    activeMenu.value = 'introduction';
+  } else
   if (newPath.includes('/home/dashboard')) {
     currentMenuTitle.value = '仪表板';
     activeMenu.value = 'dashboard';
@@ -463,7 +448,9 @@ body.dark-mode {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  margin-left: 180px;
+  width: calc(100% - 250px);
+  transition: margin-left 0.3s ease, width 0.3s ease;
 }
 
 /* 顶部导航栏样式 */

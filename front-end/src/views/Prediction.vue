@@ -26,7 +26,7 @@
           <input type="text" v-model="formData.drug_b_name" placeholder="请输入药物B名称" class="form-input" />
         </div>
 
-        <!-- 新增：反应类型选择 -->
+        <!-- 反应类型选择 -->
         <div class="form-group full-width">
           <label>反应类型</label>
           <select v-model="formData.interaction_type_id" class="form-select">
@@ -451,7 +451,7 @@ const getMatrixColor = (value) => {
 
 .select-arrow {
   position: absolute;
-  right: 12px;
+  left: 44%;
   bottom: 12px;
   color: #666;
   pointer-events: none;

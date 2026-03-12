@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import hashlib
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, desc, func
+from sqlalchemy import select, update, delete, desc, func, case
 
 from models.ddis import DDIPrediction, InteractionType, DrugInfo
 from schemas.ddis import DDIPredictionRequest, DDIPredictionUpdate
@@ -83,13 +83,13 @@ async def create_ddi_prediction(
         drug_b_name=prediction_data.get('drug_b_name'),
         smiles_a=prediction_data['smiles_a'],
         smiles_b=prediction_data['smiles_b'],
+        interaction_type_id=prediction_data.get("interaction_type_id"),
         smiles_a_hash=smiles_a_hash,
         smiles_b_hash=smiles_b_hash,
         probability=prediction_data['probability'],
         prediction_label=prediction_data['prediction_label'],
         confidence=prediction_data['confidence'],
         model_type=prediction_data.get('model_type', 'dsn-ddi'),
-        model_version=prediction_data.get('model_version'),
         drug_a_info=prediction_data.get('drug_a_info'),
         drug_b_info=prediction_data.get('drug_b_info'),
         attention_analysis=prediction_data.get('attention_analysis'),
@@ -133,12 +133,6 @@ async def update_ddi_prediction(
     await db.commit()
 
     updated_prediction = result.scalar_one_or_none()
-
-    if updated_prediction:
-        # 重新查询以获取完整对象
-        query = select(DDIPrediction).where(DDIPrediction.id == prediction_id)
-        result = await db.execute(query)
-        updated_prediction = result.scalar_one()
 
     return updated_prediction
 
@@ -203,26 +197,19 @@ async def get_prediction_stats(
 ) -> Dict[str, Any]:
     """获取用户的预测统计信息"""
 
-    # 总预测次数
-    total_query = select(func.count()).where(DDIPrediction.user_id == user_id)
-    total_result = await db.execute(total_query)
-    total = total_result.scalar() or 0
+    # 1. 总数、风险数、收藏数
+    stats_query = select(
+        func.count().label("total"),
+        func.count().filter(DDIPrediction.prediction_label == 'risk').label("risk_count"),
+        func.count().filter(DDIPrediction.is_favorite == True).label("favorite_count")
+    ).where(DDIPrediction.user_id == user_id)
 
-    # 高风险预测次数
-    risk_query = select(func.count()).where(
-        (DDIPrediction.user_id == user_id) &
-        (DDIPrediction.prediction_label == 'risk')
-    )
-    risk_result = await db.execute(risk_query)
-    risk_count = risk_result.scalar() or 0
+    stats_result = await db.execute(stats_query)
+    stats_row = stats_result.one()
 
-    # 收藏数量
-    favorite_query = select(func.count()).where(
-        (DDIPrediction.user_id == user_id) &
-        (DDIPrediction.is_favorite == True)
-    )
-    favorite_result = await db.execute(favorite_query)
-    favorite_count = favorite_result.scalar() or 0
+    total = stats_row.total or 0
+    risk_count = stats_row.risk_count or 0
+    favorite_count = stats_row.favorite_count or 0
 
     # 最近7天预测趋势
     week_ago = datetime.now() - timedelta(days=7)

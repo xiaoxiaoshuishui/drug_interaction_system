@@ -30,7 +30,7 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue'
+import { defineEmits } from 'vue'
 
 const props = defineProps({
   collapsed: {
@@ -58,11 +58,14 @@ const onMenuClick = (menuId) => {
 .sidebar {
   width: 250px;
   background: #4361ee;
+  position: fixed;
   color: white;
   display: flex;
   flex-direction: column;
   transition: all 0.3s ease;
   z-index: 100;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .sidebar.collapsed {

@@ -14,7 +14,6 @@
 </template>
 
 <script setup>
-// App.vue 作为根组件
 </script>
 
 <style>

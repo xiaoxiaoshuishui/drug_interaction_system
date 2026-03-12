@@ -29,11 +29,6 @@
                 <span>个人资料</span>
               </a>
 
-              <a href="javascript:void(0)" class="dropdown-item" @click="router.push('/account')">
-                <i class="fas fa-cog"></i>
-                <span>账户设置</span>
-              </a>
-
               <div class="dropdown-divider"></div>
 
               <a href="javascript:void(0)" class="dropdown-item text-danger" @click="handleLogout">
@@ -49,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits, onMounted, onUnmounted } from 'vue'
+import { ref, defineEmits, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import ADR2 from '../assets/ADR2.png';
 const router = useRouter()

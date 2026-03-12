@@ -33,24 +33,20 @@ const routes = [
     },
   },
   {
-    path: "/account",
-    name: "Account",
-    component: () => import("../views/Account.vue"),
-    meta: {
-      title: "账户设置",
-      keepAlive: false,
-    },
-  },
-  {
     path: "/home",
     name: "Home",
-    redirect: "/home/dashboard",
+    redirect: "/home/introduction",
     component: () => import("../views/Home.vue"),
     meta: {
       title: "首页",
       keepAlive: true,
     },
     children: [
+      {
+        path: "introduction",
+        name: "Introduction",
+        component: () => import("../views/Introduction.vue"),
+      },
       {
         path: "dashboard",
         name: "Dashboard",

@@ -60,6 +60,8 @@ async def get_user_by_token(db: AsyncSession, token: str):
     result = await db.execute(query)
     user_token = result.scalar_one_or_none()
     expires_at = user_token.expires_at
+    if not user_token:
+        return None
     if expires_at.tzinfo is not None:
         expires_at = expires_at.replace(tzinfo=None)
     if not user_token or expires_at < datetime.now():

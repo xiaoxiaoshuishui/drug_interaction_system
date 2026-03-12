@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from datetime import datetime
 import hashlib
 
@@ -13,7 +13,8 @@ class DDIPredictionBase(BaseModel):
     include_attention: Optional[bool] = Field(True, description="是否包含注意力分析")
     include_activations: Optional[bool] = Field(True, description="是否包含层激活信息")
 
-    @validator('smiles_a', 'smiles_b')
+    @field_validator('smiles_a', 'smiles_b')
+    @classmethod
     def validate_smiles(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError("SMILES不能为空")
@@ -58,6 +59,8 @@ class DDIPredictionResponse(BaseModel):
     smiles_a: str = Field(..., description="药物A的SMILES")
     smiles_b: str = Field(..., description="药物B的SMILES")
 
+    interaction_type_id: Optional[int] = Field(None, description="相互作用类型ID")
+
     # 预测结果
     probability: float = Field(..., description="相互作用概率")
     prediction_label: str = Field(..., description="预测标签")
@@ -65,7 +68,6 @@ class DDIPredictionResponse(BaseModel):
 
     # 模型信息
     model_type: str = Field(..., description="模型类型")
-    model_version: Optional[str] = Field(None, description="模型版本")
 
     # 用户交互字段
     is_favorite: bool = Field(False, description="是否收藏")
@@ -85,22 +87,6 @@ class DDIPredictionListResponse(BaseModel):
     page: int = Field(..., description="当前页码")
     page_size: int = Field(..., description="每页大小")
     data: List[DDIPredictionResponse] = Field(..., description="预测记录列表")
-
-
-class BatchPredictionRequest(BaseModel):
-    """批量预测请求"""
-    predictions: List[DDIPredictionRequest] = Field(..., description="预测请求列表")
-    parallel: Optional[bool] = Field(False, description="是否并行处理")
-
-
-class BatchPredictionResponse(BaseModel):
-    """批量预测响应"""
-    total: int = Field(..., description="总请求数")
-    successful: int = Field(..., description="成功数")
-    failed: int = Field(..., description="失败数")
-    results: List[DDIPredictionResult] = Field(default_factory=list, description="成功结果")
-    errors: List[Dict[str, Any]] = Field(default_factory=list, description="错误信息")
-
 
 class DDIPredictionUpdate(BaseModel):
     """DDI预测更新模型"""

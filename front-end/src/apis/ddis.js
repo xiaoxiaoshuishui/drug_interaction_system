@@ -1,18 +1,5 @@
 import request from "../utils/request";
 
-export const simplePredict = async (smiles_a, smiles_b, interaction_type_id) => {
-  try {
-    const response = await request.post(`/api/ddi/simple-predict`, {
-      smiles_a,
-      smiles_b,
-      interaction_type_id,
-    });
-    return response.data;
-  } catch (error) {
-    throw error;
-  }
-}
-
 export const standardPredict = async (params) => {
   try {
     // 设置默认值
@@ -56,5 +43,32 @@ export const standardPredict = async (params) => {
     } else {
       throw new Error(`请求失败: ${error.message}`);
     }
+  }
+};
+
+export const getDdiHistory = async (params) => {
+  try {
+    const response = await request.get('/api/ddi/predictions', { params });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const updatePrediction = async (id, updateData) => {
+  try {
+    const response = await request.put(`/api/ddi/predictions/${id}`, updateData);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const deletePrediction = async (id) => {
+  try {
+    const response = await request.delete(`/api/ddi/predictions/${id}`);
+    return response.data;
+  } catch (error) {
+    throw error;
   }
 };

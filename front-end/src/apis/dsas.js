@@ -35,3 +35,33 @@ export const dsaPredict = async (drug_identifier, se_name) => {
     throw error;
   }
 };
+
+// 获取 DSA 预测历史记录列表
+export const getDsaHistory = async (params) => {
+  try {
+    const response = await request.get('/api/dsa/predictions', { params });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// 更新 DSA 预测记录（切换收藏状态等）
+export const updateDsaPrediction = async (id, updateData) => {
+  try {
+    const response = await request.put(`/api/dsa/predictions/${id}`, updateData);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// 删除 DSA 预测记录
+export const deleteDsaPrediction = async (id) => {
+  try {
+    const response = await request.delete(`/api/dsa/predictions/${id}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};

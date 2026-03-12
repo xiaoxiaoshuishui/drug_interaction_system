@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.1",
+    "unplugin-vue-components": "^31.0.0",
     "vite": "^7.1.6"
   }
 }

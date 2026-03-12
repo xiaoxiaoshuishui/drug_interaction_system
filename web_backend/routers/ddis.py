@@ -9,10 +9,9 @@ from schemas.ddis import (
     DDIPredictionResponse,
     DDIPredictionResult,
     DDIPredictionListResponse,
-    BatchPredictionRequest,
-    BatchPredictionResponse,
     DDIPredictionUpdate,
-    InteractionTypeResponse
+    InteractionTypeResponse,
+    calculate_smiles_hash
 )
 from crud.ddis import (
     create_ddi_prediction,
@@ -33,15 +32,14 @@ router = APIRouter(prefix="/api/ddi", tags=["药物相互作用预测"])
 @router.post("/predict", response_model=DDIPredictionResult)
 async def predict_ddi(
         request: DDIPredictionRequest,
-        # ❌ 暂时移除认证和数据库依赖
-        # current_user: Optional[User] = Depends(get_current_user),
-        # db: AsyncSession = Depends(get_db)
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
 ):
     """
-    预测药物相互作用（临时版本，不保存数据库）
+    预测药物相互作用并保存记录到数据库
     """
     try:
-        # 直接调用模型服务，不检查缓存，不保存数据库
+        # 2. 调用模型服务进行预测
         prediction_result = await ddis_client.predict_single(
             smiles_a=request.smiles_a,
             smiles_b=request.smiles_b,
@@ -51,7 +49,52 @@ async def predict_ddi(
             include_attention=request.include_attention,
             include_activations=request.include_activations
         )
-        print(request)
+
+        # 3. 如果用户已登录，则将预测结果落库保存
+        if current_user:
+            # 如果 ddis_client 返回的是 Pydantic 模型，先转成字典
+            result_dict = prediction_result.model_dump() if hasattr(prediction_result,
+                                                                    'model_dump') else prediction_result
+
+            raw_label = str(result_dict.get("prediction", "")).lower()
+
+            if "no interaction" in raw_label or "安全" in raw_label or "safe" in raw_label:
+                db_label = "safe"
+
+            elif "interaction" in raw_label or "risk" in raw_label or "风险" in raw_label:
+                db_label = "risk"
+            else:
+                db_label = "safe"
+
+            raw_confidence = str(result_dict.get("confidence", "medium")).lower()
+            db_confidence = raw_confidence if raw_confidence in ["low", "medium", "high"] else "medium"
+            # 组装入库所需的数据（合并用户输入和模型输出）
+            prediction_data = {
+                "drug_a_name": request.drug_a_name,
+                "drug_b_name": request.drug_b_name,
+                "smiles_a": request.smiles_a,
+                "smiles_b": request.smiles_b,
+                "smiles_a_hash": calculate_smiles_hash(request.smiles_a),
+                "smiles_b_hash": calculate_smiles_hash(request.smiles_b),
+                "interaction_type_id": request.interaction_type_id,
+                "model_type": request.model_type,
+                "prediction_label": db_label,
+                "probability": result_dict.get("probability", 0.0),
+                "confidence": db_confidence,
+                "attention_analysis": result_dict.get("attention_analysis"),
+                "layer_activations": result_dict.get("layer_activations"),
+                "drug_a_info": result_dict.get("drug_a_info"),
+                "drug_b_info": result_dict.get("drug_b_info")
+            }
+
+            # 调用 CRUD 方法执行数据库写入
+            await create_ddi_prediction(
+                db=db,
+                user_id=current_user.id,
+                prediction_data=prediction_data
+            )
+
+        # 4. 无论是否登录，最后都将预测结果返回给前端
         return prediction_result
 
     except HTTPException as e:
@@ -62,62 +105,6 @@ async def predict_ddi(
             status_code=500,
             detail=f"预测失败: {str(e)}"
         )
-
-
-# @router.post("/batch-predict", response_model=BatchPredictionResponse)
-# async def batch_predict_ddi(
-#         request: BatchPredictionRequest,
-#         current_user: Optional[User] = Depends(get_current_user),
-#         db: AsyncSession = Depends(get_db)
-# ):
-#     """
-#     批量预测药物相互作用
-#     """
-#     try:
-#         # 调用模型服务进行批量预测
-#         batch_result = await ddis_client.predict_batch(
-#             predictions=[
-#                 {
-#                     "smiles_a": pred.smiles_a,
-#                     "smiles_b": pred.smiles_b,
-#                     "drug_a_name": pred.drug_a_name,
-#                     "drug_b_name": pred.drug_b_name,
-#                     "interaction_type_id": pred.interaction_type_id,
-#                     "include_attention": pred.include_attention,
-#                     "include_activations": pred.include_activations
-#                 }
-#                 for pred in request.predictions
-#             ],
-#             parallel=request.parallel
-#         )
-#
-#         # 保存成功的预测结果到数据库
-#         if current_user and batch_result.get("success"):
-#             for i, result in enumerate(batch_result.get("results", [])):
-#                 if i < len(request.predictions):
-#                     pred_request = request.predictions[i]
-#                     await create_ddi_prediction(
-#                         db=db,
-#                         prediction_data={
-#                             **result,
-#                             "drug_a_name": pred_request.drug_a_name,
-#                             "drug_b_name": pred_request.drug_b_name,
-#                             "smiles_a": pred_request.smiles_a,
-#                             "smiles_b": pred_request.smiles_b,
-#                             "model_type": pred_request.model_type
-#                         },
-#                         user_id=current_user.id
-#                     )
-#
-#         return batch_result
-#
-#     except Exception as e:
-#         logger.error(f"批量预测失败: {str(e)}")
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"批量预测失败: {str(e)}"
-#         )
-
 
 @router.get("/predictions", response_model=DDIPredictionListResponse)
 async def get_my_predictions(
@@ -236,21 +223,3 @@ async def get_interaction_types_list(
     """
     types = await get_interaction_types(db)
     return types
-
-
-# @router.post("/simple-predict")
-# async def simple_ddi_predict(
-#         data: DDIPredictionRequest
-# ):
-#     """
-#     简化版预测（无需登录）
-#     """
-#     try:
-#         result = await ddis_client.simple_predict(
-#             smiles_a=data.smiles_a,
-#             smiles_b=data.smiles_b,
-#             interaction_type_id=data.interaction_type_id or 0
-#         )
-#         return success_response(message="预测成功", data=result)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))

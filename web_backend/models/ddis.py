@@ -8,7 +8,6 @@ from sqlalchemy.orm import relationship
 from models.users import Base
 
 
-
 class DDIPrediction(Base):
     """药物相互作用预测记录表"""
     __tablename__ = 'ddi_predictions'
@@ -34,6 +33,8 @@ class DDIPrediction(Base):
     smiles_a_hash = Column(String(64), nullable=False, comment="SMILES A的哈希值")
     smiles_b_hash = Column(String(64), nullable=False, comment="SMILES B的哈希值")
 
+    interaction_type_id = Column(Integer, ForeignKey("interaction_types.id"), nullable=True, comment="相互作用类型ID")
+
     # 预测结果
     probability = Column(Float, nullable=False, comment="相互作用概率")
     prediction_label = Column(
@@ -49,7 +50,6 @@ class DDIPrediction(Base):
 
     # 模型信息
     model_type = Column(String(50), default='dsn-ddi', comment="使用的模型类型")
-    model_version = Column(String(20), nullable=True, comment="模型版本")
 
     # 额外信息（JSON格式存储）
     drug_a_info = Column(JSON, nullable=True, comment="药物A的详细信息")
