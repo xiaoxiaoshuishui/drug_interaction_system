@@ -51,12 +51,7 @@ const routes = [
         path: "dashboard",
         name: "Dashboard",
         component: () => import("../views/Dashboard.vue"),
-      },
-      {
-        path: "data",
-        name: "Data",
-        component: () => import("../views/Data.vue"),
-      },
+      }
     ],
   },
   {

@@ -11,7 +11,7 @@ from schemas.ddis import (
     DDIPredictionListResponse,
     DDIPredictionUpdate,
     InteractionTypeResponse,
-    calculate_smiles_hash
+    calculate_smiles_hash, DDIBatchAPIRequest
 )
 from crud.ddis import (
     create_ddi_prediction,
@@ -21,7 +21,7 @@ from crud.ddis import (
     delete_ddi_prediction,
     check_duplicate_prediction,
     get_prediction_stats,
-    get_interaction_types
+    get_interaction_types, create_ddi_predictions_bulk
 )
 from utils.auth import get_current_user
 from utils.response import success_response
@@ -202,6 +202,71 @@ async def delete_prediction(
     return success_response(message="删除成功")
 
 
+@router.post("/predict/batch", summary="批量DDI预测")
+async def predict_ddi_batch_api(
+        request: DDIBatchAPIRequest,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    if not request.pairs:
+        raise HTTPException(status_code=400, detail="预测列表不能为空")
+
+    if len(request.pairs) > 10:
+        raise HTTPException(status_code=400, detail="单次批量预测建议不超过 10 条")
+
+    # 1. 调用底层的批量接口
+    batch_response = await ddis_client.predict_batch(pairs=request.pairs)
+
+    if not batch_response.get("success"):
+        raise HTTPException(status_code=500, detail="底层批量预测失败")
+
+    model_results = batch_response.get("results", [])
+
+    # 2. 准备落库数据并格式化前端返回格式
+    db_records_to_insert = []
+    final_results = []
+
+    for res in model_results:
+        if res.get("success"):
+            db_label = "risk" if res.get("probability", 0) > 0.5 else "safe"
+
+            # 组装返回给前端的对象
+            final_res = {
+                "success": True,
+                "drug_a_name": res.get("drug_a_name"),
+                "drug_b_name": res.get("drug_b_name"),
+                "smiles_a": res.get("smiles_a"),
+                "smiles_b": res.get("smiles_b"),
+                "interaction_type_id": res.get("interaction_type_id", 0),
+                "score": res.get("probability"),
+                "risk_level": "High" if db_label == "risk" else "Low"
+            }
+            final_results.append(final_res)
+
+            # 组装落库对象
+            db_records_to_insert.append({
+                "drug_a_name": res.get("drug_a_name"),
+                "drug_b_name": res.get("drug_b_name"),
+                "smiles_a": res.get("smiles_a"),
+                "smiles_b": res.get("smiles_b"),
+                "interaction_type_id": res.get("interaction_type_id", 0),
+                "probability": res.get("probability"),
+                "prediction_label": db_label,
+                "confidence": res.get("confidence")
+            })
+        else:
+            final_results.append(res)
+
+    # 3. 异步批量落库
+    if current_user and db_records_to_insert:
+        try:
+            await create_ddi_predictions_bulk(db, current_user.id, db_records_to_insert)
+        except Exception as e:
+            print(f"DDI 批量落库失败: {e}")
+
+    return success_response(data=final_results, message="DDI 批量预测完成")
+
+
 @router.get("/stats")
 async def get_my_stats(
         current_user: User = Depends(get_current_user),
@@ -223,3 +288,4 @@ async def get_interaction_types_list(
     """
     types = await get_interaction_types(db)
     return types
+

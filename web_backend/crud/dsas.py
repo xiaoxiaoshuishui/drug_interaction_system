@@ -105,3 +105,23 @@ async def delete_dsa_prediction(db: AsyncSession, prediction_id: int, user_id: i
     result = await db.execute(stmt)
     await db.commit()
     return result.rowcount > 0
+
+
+async def create_dsa_predictions_bulk(db: AsyncSession, user_id: int, predictions_data: list[dict]) -> bool:
+    if not predictions_data:
+        return True
+
+    db_predictions = []
+    for data in predictions_data:
+        db_prediction = DSAPrediction(
+            user_id=user_id,
+            drug_identifier=data.get("drug_identifier"),
+            se_name=data.get("se_name"),
+            probability=data.get("probability"),
+            prediction_label=data.get("prediction_label")
+        )
+        db_predictions.append(db_prediction)
+
+    db.add_all(db_predictions)
+    await db.commit()
+    return True

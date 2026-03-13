@@ -43,3 +43,11 @@ async def update_password(password_data: UserChangePasswordRequest, user: User =
     if not res:
         raise HTTPException(status_code=400, detail="旧密码错误")
     return success_response(message="修改密码成功")
+
+
+@router.delete("/account", summary="注销当前账户")
+async def delete_my_account(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    success = await users.delete_user_account(db, current_user.id)
+    if not success:
+        raise HTTPException(status_code=500, detail="注销失败，服务器内部错误或用户不存在")
+    return success_response(message="账户及其所有数据已永久注销")

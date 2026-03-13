@@ -24,26 +24,16 @@
         <div class="cover-image">
           <img :src="coverImage" alt="cover" @error="handleCoverError">
           <div v-if="isSelf" class="edit-cover">
-            <van-uploader :after-read="afterCoverRead" accept="image/*">
-              <van-icon name="photograph" />
-              <span>更换封面</span>
-            </van-uploader>
           </div>
         </div>
 
         <div class="avatar-section">
-          <div class="avatar-wrapper" @click="previewAvatar">
-            <van-image round width="80" height="80" :src="userAvatar" @error="handleAvatarError">
+          <div class="avatar-wrapper">
+            <van-image round width="80" height="80" :src="userAvatar">
               <template v-slot:error>
                 <img :src="defaultAvatar" alt="默认头像" style="width:100%;height:100%;border-radius:50%;">
               </template>
             </van-image>
-            <div v-if="isSelf" class="edit-avatar">
-              <van-uploader :after-read="afterAvatarRead" accept="image/*" max-size="5 * 1024 * 1024"
-                @oversize="onAvatarOversize">
-                <van-icon name="photograph" />
-              </van-uploader>
-            </div>
           </div>
         </div>
       </div>
@@ -53,7 +43,6 @@
         <div class="user-name-wrapper">
           <h2 class="nickname">{{ displayName }}</h2>
           <van-tag v-if="isSelf" type="primary" size="small">我的主页</van-tag>
-          <van-tag v-else type="success" size="small">访客模式</van-tag>
         </div>
 
         <p class="username">@{{ userInfo?.username || '用户名' }}</p>
@@ -84,9 +73,12 @@
           </van-cell>
         </van-cell-group>
 
-        <!-- 危险区域 -->
-        <van-cell-group inset title="危险区域" class="danger-zone">
-          <van-cell title="注销账户" title-class="danger-text" is-link @click="showLogoutDialog = true" />
+        <van-cell-group inset class="danger-zone">
+          <van-cell title="注销账户" title-class="danger-text" is-link @click="deleteAccount">
+            <template #icon>
+              <van-icon name="delete" class="danger-icon" />
+            </template>
+          </van-cell>
         </van-cell-group>
 
         <!-- 退出登录按钮 -->
@@ -194,10 +186,6 @@
         </div>
       </div>
     </van-dialog>
-
-    <!-- 注销确认弹窗 -->
-    <van-dialog v-model:show="showLogoutDialog" title="注销账户" message="注销后，您的所有数据将被永久删除，且无法恢复。确定要继续吗？" show-cancel-button
-      confirm-button-text="确认注销" confirm-button-color="#ee0a24" @confirm="logoutAccount" />
 
     <!-- 图片预览弹窗 -->
     <van-image-preview v-model:show="showPreview" :images="previewImages" />
@@ -336,7 +324,6 @@ const loadUserPredictions = async () => {
     // 处理 DDI 响应
     if (ddiRes.status === 'fulfilled') {
       const ddiData = ddiRes.value.data || ddiRes.value;
-      console.log('DDI历史记录:', ddiData);
       ddiPredictions.value = ddiData || [];
     }
 
@@ -354,70 +341,6 @@ const loadUserPredictions = async () => {
 
 const refreshData = () => {
   loadUserData();
-};
-
-// 头像相关
-const handleAvatarError = () => {
-  if (userInfo.value) {
-    userInfo.value.avatar = defaultAvatar;
-  }
-};
-
-const previewAvatar = () => {
-  previewImages.value = [userAvatar.value];
-  showPreview.value = true;
-};
-
-const afterAvatarRead = async (file) => {
-  try {
-    showToast('头像上传功能开发中');
-
-    /* 实际调用示例：
-    const formData = new FormData();
-    formData.append('avatar', file.file);
-    
-    const res = await userService.uploadAvatar(userStore.token, formData);
-    if (res.code === 200) {
-      userInfo.value.avatar = res.data.avatarUrl;
-      if (isSelf.value) {
-        userStore.userInfo.avatar = res.data.avatarUrl;
-      }
-      showSuccessToast('头像更新成功');
-    } else {
-      throw new Error(res.message);
-    }
-    */
-  } catch (err) {
-    showFailToast('头像上传失败');
-  }
-};
-
-const onAvatarOversize = () => {
-  showToast('图片大小不能超过5MB');
-};
-
-// 封面相关
-const handleCoverError = () => {
-  coverImage.value = defaultCover;
-};
-
-const afterCoverRead = async (file) => {
-  try {
-    showToast('封面上传功能开发中');
-
-    /* 实际调用示例：
-    const formData = new FormData();
-    formData.append('cover', file.file);
-    
-    const res = await userService.uploadCover(userStore.token, formData);
-    if (res.code === 200) {
-      coverImage.value = res.data.coverUrl;
-      showSuccessToast('封面更新成功');
-    }
-    */
-  } catch (err) {
-    showFailToast('封面上传失败');
-  }
 };
 
 // 简介编辑
@@ -527,17 +450,54 @@ const handleLogout = () => {
     message: '确定要退出当前账号吗？'
   }).then(() => {
     userStore.logout();
-    router.push('/login');
+    
     showSuccessToast('已退出登录');
-  }).catch(() => { });
+    
+    setTimeout(() => {
+      router.push('/login');
+    }, 100);
+    
+  }).catch(() => { 
+    // 点击取消，什么都不做
+  });
 };
 
 // 注销账户
-const logoutAccount = () => {
-  // 调用注销接口
-  showSuccessToast('账户已注销');
-  userStore.logout();
-  router.push('/register');
+const deleteAccount = () => {
+  showConfirmDialog({
+    title: '注销账户',
+    message: '注销后，您的所有数据将被永久删除，且无法恢复。确定要继续吗？',
+    confirmButtonText: '确认注销',
+    confirmButtonColor: '#ee0a24',
+    cancelButtonText: '取消'
+  })
+    .then(async () => {
+      // 用户点击了确认
+      try {
+        showToast({ type: 'loading', message: '正在注销...', duration: 0 });
+        
+        const res = await userService.deleteAccount();
+        console.log('注销账户响应:', res);
+        if (res.data.code === 200) {
+          showSuccessToast('账户已永久注销');
+          
+          userStore.logout();
+          
+          setTimeout(() => {
+            router.push('/register');
+          }, 100);
+          
+        } else {
+          showFailToast(res.message || '注销失败');
+        }
+      } catch (err) {
+        console.error('注销请求出错:', err);
+        showFailToast('网络错误或接口未配置，注销失败');
+      }
+    })
+    .catch(() => {
+      // 用户点击取消，什么都不做
+    });
 };
 
 // 格式化时间
@@ -753,7 +713,12 @@ onMounted(() => {
   font-size: 18px;
 }
 
-/* 危险区域 */
+.danger-icon{
+  margin-right: 8px;
+  color: #ee0a24;
+  font-size: 18px;
+}
+
 .danger-zone :deep(.van-cell) {
   color: #ee0a24;
 }

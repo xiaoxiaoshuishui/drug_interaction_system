@@ -65,3 +65,35 @@ export const deleteDsaPrediction = async (id) => {
     throw error;
   }
 };
+
+// 模糊搜索药物
+export const searchDsaDrugs = async (keyword) => {
+  try {
+    const res = await request.get('/api/dsa/search/drugs', { params: { keyword } });
+    return res.data || res; 
+  } catch (error) {
+    console.error(error);
+    return { data: [] };
+  }
+};
+
+// 模糊搜索副作用
+export const searchDsaSideEffects = async (keyword) => {
+  try {
+    const res = await request.get('/api/dsa/search/side-effects', { params: { keyword } });
+    return res.data || res;
+  } catch (error) {
+    console.error(error);
+    return { data: [] };
+  }
+};
+
+export const predictDsaBatch = async (payload) => {
+  try {
+    const res = await request.post('/api/dsa/predict/batch', payload);
+    return res.data || res;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+};

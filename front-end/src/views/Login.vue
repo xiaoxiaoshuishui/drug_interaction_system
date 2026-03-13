@@ -2,45 +2,29 @@
   <div class="login-page">
     <div class="login-container">
       <div class="login-logo">
-        <van-image
-          width="80"
-          height="80"
-          :src="ADR2"
-          round
-        />
+        <van-image width="80" height="80" :src="ADR2" round />
         <h2>药物不良反应预测平台</h2>
       </div>
-      
+
       <van-form @submit="onSubmit" class="login-form">
         <van-cell-group inset>
-          <van-field
-            v-model="username"
-            name="username"
-            label="用户名"
-            placeholder="请输入用户名"
-            :rules="[{ required: true, message: '请填写用户名' }]"
-          />
-          <van-field
-            v-model="password"
-            type="password"
-            name="password"
-            label="密码"
-            placeholder="请输入密码"
-            :rules="[{ required: true, message: '请填写密码' }]"
-          />
+          <van-field v-model="username" name="username" label="用户名" placeholder="请输入用户名"
+            :rules="[{ required: true, message: '请填写用户名' }]" />
+          <van-field v-model="password" type="password" name="password" label="密码" placeholder="请输入密码"
+            :rules="[{ required: true, message: '请填写密码' }]" />
         </van-cell-group>
-        
+
         <div class="submit-btn">
           <van-button round block type="primary" native-type="submit" size="large">
             登录
           </van-button>
         </div>
 
-         <div class="register-link">
+        <div class="register-link">
           <span>没有账号？</span>
           <a href="javascript:;" @click="goToRegister">点击注册</a>
         </div>
-        
+
         <div class="login-tips">
           <p>测试账号：admin</p>
           <p>测试密码：123456</p>
@@ -71,21 +55,23 @@ const onSubmit = async (values) => {
     forbidClick: true,
     duration: 0
   });
-  
+
   try {
     // 调用API登录
     const result = await userStore.login({
       username: username.value,
       password: password.value
     });
-    
+
     if (result.success) {
       showToast({
         type: 'success',
         message: result.message
       });
       console.log('登录成功，跳转首页');
-      router.push('/');
+      setTimeout(() => {
+        router.push('/');
+      }, 100);
     } else {
       showToast({
         type: 'fail',

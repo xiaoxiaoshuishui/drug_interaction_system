@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, defineEmits, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import ADR2 from '../assets/ADR2.png';
 const router = useRouter()
@@ -63,7 +63,7 @@ const props = defineProps({
   },
   currentMenuTitle: {
     type: String,
-    default: '仪表板'
+    default: '分子查询'
   }
 })
 

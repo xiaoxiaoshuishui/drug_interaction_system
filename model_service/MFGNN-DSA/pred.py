@@ -194,6 +194,36 @@ async def predict(request: PredictionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/predict_batch")
+async def predict_batch_endpoint(request: BatchPredictionRequest):
+    if model is None:
+        raise HTTPException(status_code=503, detail="模型未加载完毕，请稍后再试")
+
+    try:
+        if not request.pairs:
+            return {"success": True, "results": []}
+
+        idx_tensor = torch.tensor(request.pairs, dtype=torch.long).to(device)
+
+        with torch.no_grad():
+            y_pred = model(se_HIN, se_SE, se_adj, drug_HIN, drug_PC, drug_adj, idx_tensor, device)
+            # 将输出的张量展平并转回 numpy 数组
+            scores = y_pred.cpu().detach().numpy().flatten()
+
+        results = []
+        for i, (se_idx, drug_idx) in enumerate(request.pairs):
+            score = float(max(0.0, min(1.0, scores[i]))) # 防止越界负数
+            results.append({
+                "se_index": se_idx,
+                "drug_index": drug_idx,
+                "score": score,
+                "prediction": 1 if score >= 0.5 else 0
+            })
+
+        return {"success": True, "results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ---------------------------------------------------------
 # 5. 异常处理
 # ---------------------------------------------------------

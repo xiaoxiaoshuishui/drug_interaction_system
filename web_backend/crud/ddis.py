@@ -291,3 +291,41 @@ async def create_or_update_drug_info(
         await db.commit()
         await db.refresh(new_drug)
         return new_drug
+
+
+async def create_ddi_predictions_bulk(
+        db: AsyncSession,
+        user_id: int,
+        predictions_data: list[dict]
+) -> bool:
+    """批量创建 DDI 预测记录"""
+    if not predictions_data:
+        return True
+
+    db_predictions = []
+    for data in predictions_data:
+        # 同样需要计算哈希值
+        smiles_a_hash = calculate_smiles_hash(data['smiles_a'])
+        smiles_b_hash = calculate_smiles_hash(data['smiles_b'])
+
+        db_prediction = DDIPrediction(
+            user_id=user_id,
+            drug_a_name=data.get('drug_a_name'),
+            drug_b_name=data.get('drug_b_name'),
+            smiles_a=data['smiles_a'],
+            smiles_b=data['smiles_b'],
+            interaction_type_id=data.get("interaction_type_id", 0),
+            smiles_a_hash=smiles_a_hash,
+            smiles_b_hash=smiles_b_hash,
+            probability=data.get('probability', 0.0),
+            prediction_label=data.get('prediction_label', 'safe'),
+            confidence=data.get('confidence', 'low'),
+            model_type='dsn-ddi',
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        db_predictions.append(db_prediction)
+
+    db.add_all(db_predictions)
+    await db.commit()
+    return True

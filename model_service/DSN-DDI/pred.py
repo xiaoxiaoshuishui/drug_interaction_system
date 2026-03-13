@@ -153,6 +153,9 @@ class DDIPredictionRequest(BaseModel):
     include_attention: Optional[bool] = True
     include_activations: Optional[bool] = True
 
+class DDIBatchRequest(BaseModel):
+    pairs: List[Dict[str, Any]]  # 例如 [{"smiles_a": "...", "smiles_b": "...", "interaction_type_id": 0}]
+
 
 class AttentionAnalysis(BaseModel):
     """注意力权重分析结果"""
@@ -416,7 +419,7 @@ async def startup_event():
     global MODEL, DEVICE
 
     try:
-        model_path = 'drugbank_test/transductive_drugbank.pkl'
+        model_path = 'drugbank_test/inductive_drugbank.pkl'
         DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"正在加载模型到设备: {DEVICE}")
 
@@ -472,35 +475,49 @@ async def predict_ddi(request: DDIPredictionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"预测过程中发生未知错误: {str(e)}")
 
-@app.post("/predict/simple", tags=["预测"])
-async def simple_predict(request: DDIPredictionRequest):
-    """简化版预测接口（仅返回关键结果）"""
+
+@app.post("/predict_batch", tags=["预测"])
+async def predict_ddi_batch(request: DDIBatchRequest):
+    """批量预测接口"""
     if MODEL is None:
-        raise HTTPException(
-            status_code=503,
-            detail="模型未加载，请检查服务状态"
-        )
+        raise HTTPException(status_code=503, detail="模型未加载")
 
-    try:
-        result = predict_with_explanation(
-            model=MODEL,
-            smiles_a=request.smiles_a,
-            smiles_b=request.smiles_b,
-            interaction_type_id=request.interaction_type_id,
-            include_attention=True,
-            include_activations=True
-        )
+    results = []
+    for pair in request.pairs:
+        try:
+            res = predict_with_explanation(
+                model=MODEL,
+                smiles_a=pair["smiles_a"],
+                smiles_b=pair["smiles_b"],
+                drug_a_name=pair.get("drug_a_name", "Drug A"),
+                drug_b_name=pair.get("drug_b_name", "Drug B"),
+                interaction_type_id=pair.get("interaction_type_id", 0),
+                include_attention=False,
+                include_activations=False
+            )
 
-        # 返回简化结果
-        return {
-            "success": True,
-            "probability": result["probability"],
-            "prediction": result["prediction"],
-            "confidence": result["confidence"]
-        }
+            # 简化返回结构，节省带宽
+            results.append({
+                "success": True,
+                "smiles_a": pair["smiles_a"],
+                "smiles_b": pair["smiles_b"],
+                "drug_a_name": pair.get("drug_a_name", "Drug A"),
+                "drug_b_name": pair.get("drug_b_name", "Drug B"),
+                "interaction_type_id": pair.get("interaction_type_id", 0),
+                "prediction": res["prediction"],
+                "probability": res["probability"],
+                "confidence": res["confidence"]
+            })
+        except Exception as e:
+            results.append({
+                "success": False,
+                "smiles_a": pair["smiles_a"],
+                "smiles_b": pair["smiles_b"],
+                "interaction_type_id": pair.get("interaction_type_id", 0),
+                "error_message": str(e)
+            })
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"success": True, "results": results}
 
 
 # ---------------------------------------------------------
@@ -541,7 +558,7 @@ if __name__ == "__main__":
 
     # 启动FastAPI应用
     uvicorn.run(
-        "simple_pred:app",
+        "pred:app",
         host="127.0.0.1",
         port=8001,
         reload=True,

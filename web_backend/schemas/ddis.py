@@ -104,6 +104,9 @@ class InteractionTypeResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class DDIBatchAPIRequest(BaseModel):
+    pairs: List[Dict[str, Any]]
+
 
 def calculate_smiles_hash(smiles: str) -> str:
     """计算SMILES字符串的哈希值"""

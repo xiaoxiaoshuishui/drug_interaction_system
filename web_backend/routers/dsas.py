@@ -9,7 +9,7 @@ from schemas.dsas import (
     DSAPredictionResult,
     DSAPredictionListResponse,
     DSAPredictionUpdate,
-    DSAPredictionResponse
+    DSAPredictionResponse, DSABatchPredictionRequest
 )
 from crud.dsas import (
     create_dsa_prediction,
@@ -17,7 +17,8 @@ from crud.dsas import (
     update_dsa_prediction,
     delete_dsa_prediction,
     get_drug_names_by_indices,
-    get_se_names_by_indices
+    get_se_names_by_indices,
+    create_dsa_predictions_bulk
 )
 from utils.auth import get_current_user
 from utils.dsas_client import dsas_client, logger
@@ -190,3 +191,142 @@ async def delete_dsa_prediction_api(
     if not success:
         raise HTTPException(status_code=404, detail="预测记录不存在或无权限")
     return success_response(message="删除成功")
+
+
+@router.get("/search/drugs", summary="模糊搜索药物 (用于下拉联想)")
+async def search_dsa_drugs(
+        keyword: str = Query(..., min_length=1, description="搜索关键词"),
+        db: AsyncSession = Depends(get_db)
+):
+    stmt = select(DSADrugNode).where(
+        or_(
+            DSADrugNode.drug_name.ilike(f"%{keyword}%"),
+            DSADrugNode.drug_name_cn.ilike(f"%{keyword}%"),
+            DSADrugNode.smiles.ilike(f"%{keyword}%")
+        )
+    ).limit(10)  # 限制下拉列表最多显示10条
+
+    result = await db.execute(stmt)
+    drugs = result.scalars().all()
+
+    # 返回精简数据给前端展示
+    data = []
+    for d in drugs:
+        display_name = d.drug_name_cn if d.drug_name_cn else d.drug_name
+        data.append({
+            "value": display_name,  # 优先展示中文名
+            "smiles": d.smiles,  # 附带 smiles
+            "identifier": display_name  # 填入输入框的词
+        })
+
+    return success_response(data=data)
+
+
+@router.get("/search/side-effects", summary="模糊搜索副作用 (用于下拉联想)")
+async def search_dsa_side_effects(
+        keyword: str = Query(..., min_length=1, description="搜索关键词"),
+        db: AsyncSession = Depends(get_db)
+):
+    stmt = select(DSASideEffectNode).where(
+        or_(
+            DSASideEffectNode.se_name.ilike(f"%{keyword}%"),
+            DSASideEffectNode.se_name_cn.ilike(f"%{keyword}%")
+        )
+    ).limit(10)
+
+    result = await db.execute(stmt)
+    ses = result.scalars().all()
+
+    data = []
+    for s in ses:
+        display_name = s.se_name_cn if s.se_name_cn else s.se_name
+        data.append({
+            "value": display_name,
+            "en_name": s.se_name
+        })
+
+    return success_response(data=data)
+
+
+@router.post("/predict/batch", summary="批量 DSA 预测")
+async def predict_dsa_batch(
+        request: DSABatchPredictionRequest,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    if not request.pairs:
+        raise HTTPException(status_code=400, detail="预测列表不能为空")
+
+    if len(request.pairs) > 500:  # 有了 GPU 矩阵加速，批量上限可以轻松提高到 500
+        raise HTTPException(status_code=400, detail="单次批量预测不能超过 500 条")
+
+    tensor_pairs = []
+    valid_requests = []
+    final_results = []
+
+    for pair in request.pairs:
+        stmt_drug = select(DSADrugNode).where(
+            or_(DSADrugNode.drug_name_cn == pair.drug_identifier, DSADrugNode.drug_name == pair.drug_identifier,
+                DSADrugNode.smiles == pair.drug_identifier))
+        drug_node = (await db.execute(stmt_drug)).scalars().first()
+
+        stmt_se = select(DSASideEffectNode).where(
+            or_(DSASideEffectNode.se_name_cn == pair.se_name, DSASideEffectNode.se_name == pair.se_name))
+        se_node = (await db.execute(stmt_se)).scalars().first()
+
+        if not drug_node or not se_node:
+            final_results.append({
+                "drug_identifier": pair.drug_identifier,
+                "se_name": pair.se_name,
+                "success": False,
+                "error_message": "未找到对应的药物或副作用节点"
+            })
+            continue
+
+        tensor_pairs.append([se_node.model_index, drug_node.model_index])
+
+        valid_requests.append({
+            "original_drug_id": pair.drug_identifier,
+            "original_se_name": pair.se_name,
+            "drug_name_cn": drug_node.drug_name_cn if drug_node.drug_name_cn else drug_node.drug_name,
+            "se_name_cn": se_node.se_name_cn if se_node.se_name_cn else se_node.se_name
+        })
+
+    if tensor_pairs:
+        batch_response = await dsas_client.predict_batch(pairs=tensor_pairs)
+
+        if batch_response.get("success"):
+            model_results = batch_response.get("results", [])
+            db_records_to_insert = []
+
+            for i, result_dict in enumerate(model_results):
+                meta = valid_requests[i]
+
+                final_dict = {
+                    "success": True,
+                    "drug_identifier": meta["original_drug_id"],
+                    "se_name": meta["original_se_name"],
+                    "drug_name": meta["drug_name_cn"],
+                    "se_name_cn": meta["se_name_cn"],
+                    "score": result_dict["score"],
+                    "prediction": result_dict["prediction"],
+                    "risk_level": "High" if result_dict["prediction"] == 1 else "Low"
+                }
+                final_results.append(final_dict)
+
+                # 组装准备落库的数据
+                db_label = "risk" if result_dict["prediction"] == 1 else "safe"
+                db_records_to_insert.append({
+                    "drug_identifier": meta["original_drug_id"],
+                    "se_name": meta["original_se_name"],
+                    "prediction_label": db_label,
+                    "probability": result_dict["score"]
+                })
+
+            if current_user and db_records_to_insert:
+                try:
+                    await create_dsa_predictions_bulk(db, current_user.id, db_records_to_insert)
+                except Exception as e:
+                    print(f"批量落库失败: {e}")
+
+    return success_response(data=final_results, message=f"成功完成预测")

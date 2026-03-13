@@ -36,7 +36,14 @@ class User(Base):
         "DDIPrediction",
         back_populates="user",
         cascade="all, delete-orphan",
-        lazy="dynamic"  # 或者 "selectin"、"joined"
+        lazy="dynamic"
+    )
+
+    dsa_predictions = relationship(
+        "DSAPrediction",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="dynamic"
     )
 
     def __repr__(self):

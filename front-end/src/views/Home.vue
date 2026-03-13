@@ -52,10 +52,10 @@ const userAvatar = ref(userStore.userInfo?.avatar || ADR2)
 const darkMode = ref(false)
 const showNotifications = ref(false)
 const showUserDropdown = ref(false)
-const currentMenuTitle = ref('仪表板')
+const currentMenuTitle = ref('分子查询')
 const menuTitleMap = {
   'introduction': '介绍',
-  'dashboard': '仪表板',
+  'dashboard': '分子查询',
   // 'data': '数据分析',
   'prediction': '药物预测',
   'history': '历史记录',
@@ -70,7 +70,7 @@ const menuSections = ref([
     title: '主导航',
     items: [
       { id: 'introduction', text: '介绍', icon: 'info-o', badge: '' },
-      { id: 'dashboard', text: '仪表板', icon: 'home-o', badge: '' },
+      { id: 'dashboard', text: '分子查询', icon: 'home-o', badge: '' },
       // { id: 'data', text: '数据分析', icon: 'bar-chart-o', badge: '新' },
     ]
   },
@@ -228,7 +228,7 @@ watch(() => route.path, (newPath) => {
     activeMenu.value = 'introduction';
   } else
   if (newPath.includes('/home/dashboard')) {
-    currentMenuTitle.value = '仪表板';
+    currentMenuTitle.value = '分子查询';
     activeMenu.value = 'dashboard';
   } else if (newPath.includes('/home/data')) {
     currentMenuTitle.value = '数据分析';

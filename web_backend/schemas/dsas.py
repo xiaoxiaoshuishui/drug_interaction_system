@@ -72,3 +72,6 @@ class DSAPredictionListResponse(BaseModel):
     page: int
     page_size: int
     data: List[DSAPredictionResponse]
+
+class DSABatchPredictionRequest(BaseModel):
+    pairs: List[DSAPredictionRequest]

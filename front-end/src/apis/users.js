@@ -68,7 +68,11 @@ const userService = {
     } catch (error) {
       throw error;
     }
-  }
+  },
+
+  async deleteAccount(){
+  return request.delete('/api/user/account');
+}
 };
 
 export default userService;

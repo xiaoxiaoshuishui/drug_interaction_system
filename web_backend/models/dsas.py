@@ -45,7 +45,7 @@ class DSAPrediction(Base):
 
     # 用户关联
     user_id = Column(Integer, ForeignKey("user.id"), nullable=True)
-    user = relationship("User", backref="dsa_predictions") # 如果 User 模型里没写 back_populates，去掉这行也可以
+    user = relationship("User", back_populates="dsa_predictions")
 
     # 预测输入信息
     drug_identifier = Column(String(500), nullable=False, comment="药物标识符(名称或SMILES)")

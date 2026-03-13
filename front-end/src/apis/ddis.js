@@ -72,3 +72,17 @@ export const deletePrediction = async (id) => {
     throw error;
   }
 };
+
+// 批量 DDI 预测
+export const batchPredict = async (payload) => {
+  try {
+    const response = await request.post('/api/ddi/predict/batch', payload);
+    return response.data || response;
+  } catch (error) {
+    console.error('DDI 批量预测失败:', error);
+    if (error.response) {
+      throw new Error(error.response.data?.detail || '批量预测失败');
+    }
+    throw error;
+  }
+};

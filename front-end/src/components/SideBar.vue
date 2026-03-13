@@ -30,8 +30,6 @@
 </template>
 
 <script setup>
-import { defineEmits } from 'vue'
-
 const props = defineProps({
   collapsed: {
     type: Boolean,

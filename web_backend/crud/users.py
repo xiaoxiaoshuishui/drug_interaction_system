@@ -3,12 +3,16 @@ from datetime import datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select, update, delete
 from models.users import User, UserToken
 from schemas.users import UserRequest, UserUpdateRequest
 from utils import security
 from utils.security import verify_password
+from models.ddis import DDIPrediction
+from models.dsas import DSAPrediction
+import logging
 
+logger = logging.getLogger(__name__)
 
 async def get_user(db: AsyncSession, username: str):
     query = select(User).where(User.username == username)
@@ -88,3 +92,21 @@ async def change_user_password(db: AsyncSession, user: User, old_password: str, 
     await db.commit()
     await db.refresh(user)
     return True
+
+
+async def delete_user_account(db: AsyncSession, user_id: int) -> bool:
+    """彻底注销用户账户，并级联删除其所有的预测记录"""
+    try:
+        await db.execute(delete(DDIPrediction).where(DDIPrediction.user_id == user_id))
+
+        await db.execute(delete(DSAPrediction).where(DSAPrediction.user_id == user_id))
+
+        result = await db.execute(delete(User).where(User.id == user_id))
+
+        # 提交事务
+        await db.commit()
+        return result.rowcount > 0
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"注销账户失败, user_id: {user_id}, error: {str(e)}")
+        return False
