@@ -96,6 +96,52 @@
         </div>
 
         <van-tabs v-model:active="activeTab" animated swipeable color="#1989fa">
+          <van-tab title="个人收藏">
+            <div v-if="favoritesLoading" class="predictions-skeleton">
+              <van-skeleton title :row="2" v-for="n in 3" :key="n" />
+            </div>
+
+            <van-empty v-else-if="favoritePredictions.length === 0" description="暂无收藏记录">
+              <van-button v-if="isSelf" round type="primary" size="small" to="/home">去探索</van-button>
+            </van-empty>
+
+            <div v-else class="predictions-list">
+              <div v-for="record in favoritePredictions" :key="'fav-' + record.id" class="prediction-card">
+                <div class="drug-pair">
+                  <van-tag :type="record._type === 'DDI' ? 'primary' : 'warning'" size="small"
+                    style="margin-right: 8px;">
+                    {{ record._type }}
+                  </van-tag>
+
+                  <span class="drug">
+                    {{ truncateName(record.drug_identifier || record.drug_a_name || record.smiles_a || '未知药物') }}
+                  </span>
+
+                  <van-icon :name="record._type === 'DDI' ? 'exchange' : 'arrow'" class="arrow-icon"
+                    style="margin: 0 4px;" />
+
+                  <span class="drug" :class="{ 'se-text': record._type === 'DSA' }">
+                    {{ truncateName(record.se_name || record.drug_b_name || record.smiles_b || '未知副作用/药物') }}
+                  </span>
+                </div>
+
+                <div class="prediction-info" style="margin-bottom: 6px;">
+                  <van-tag v-if="record._type === 'DDI'"
+                    :type="record.prediction_label === 'safe' ? 'success' : 'danger'" size="small">
+                    {{ record.prediction_label === 'safe' ? '安全' : REACTION_TYPE_MAP[record.interaction_type_id] }}
+                  </van-tag>
+
+                  <van-tag v-else :type="record.prediction_label === 'safe' ? 'success' : 'danger'" size="small">
+                    {{ record.prediction_label === 'safe' ? '安全' : '存在风险' }}
+                  </van-tag>
+                </div>
+                <span class="time">{{ formatRelativeTime(record.created_at) }}</span>
+              </div>
+              <div class="view-more-btn" @click="router.push('/ddi/history')">
+                查看全部收藏记录 <van-icon name="arrow" />
+              </div>
+            </div>
+          </van-tab>
 
           <van-tab title="药物相互作用 (DDI)">
             <div v-if="predictionsLoading" class="predictions-skeleton">
@@ -222,6 +268,8 @@ const previewImages = ref([]);
 const activeTab = ref(0);
 const ddiPredictions = ref([]);
 const dsaPredictions = ref([]);
+const favoritePredictions = ref([]);
+const favoritesLoading = ref(false);
 
 // 账户设置相关状态
 const showPasswordDialog = ref(false);
@@ -315,27 +363,43 @@ const loadUserPredictions = async () => {
   if (!targetUserId.value) return;
 
   predictionsLoading.value = true;
+  favoritesLoading.value = true;
+  
   try {
     const [ddiRes, dsaRes] = await Promise.allSettled([
-      getDdiHistory({ page: 1, page_size: 5 }),
-      getDsaHistory({ page: 1, page_size: 5 })
+      getDdiHistory({ page: 1, page_size: 5 }), // 获取 DDI 历史记录
+      getDsaHistory({ page: 1, page_size: 5 })  // 获取 DSA 历史记录
     ]);
 
-    // 处理 DDI 响应
+    let ddiData = [];
+    let dsaData = [];
+
+    // 1. 处理 DDI 响应
     if (ddiRes.status === 'fulfilled') {
-      const ddiData = ddiRes.value.data || ddiRes.value;
-      ddiPredictions.value = ddiData || [];
+      ddiData = ddiRes.value.data?.data || ddiRes.value.data || [];
+      ddiPredictions.value = ddiData;
     }
 
-    // 处理 DSA 响应
+    // 2. 处理 DSA 响应
     if (dsaRes.status === 'fulfilled') {
-      const dsaData = dsaRes.value.data || dsaRes.value;
-      dsaPredictions.value = dsaData || [];
+      dsaData = dsaRes.value.data?.data || dsaRes.value.data || [];
+      dsaPredictions.value = dsaData;
     }
+
+    const typedDdiData = ddiData.map(item => ({ ...item, _type: 'DDI' }));
+    const typedDsaData = dsaData.map(item => ({ ...item, _type: 'DSA' }));
+    
+    let allRecords = [...typedDdiData, ...typedDsaData];
+
+    favoritePredictions.value = allRecords.filter(item => item.is_favorite === true);
+
+    favoritePredictions.value.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
   } catch (err) {
     console.error('加载预测列表失败:', err);
   } finally {
     predictionsLoading.value = false;
+    favoritesLoading.value = false;
   }
 };
 
@@ -450,14 +514,14 @@ const handleLogout = () => {
     message: '确定要退出当前账号吗？'
   }).then(() => {
     userStore.logout();
-    
+
     showSuccessToast('已退出登录');
-    
+
     setTimeout(() => {
       router.push('/login');
     }, 100);
-    
-  }).catch(() => { 
+
+  }).catch(() => {
     // 点击取消，什么都不做
   });
 };
@@ -475,18 +539,18 @@ const deleteAccount = () => {
       // 用户点击了确认
       try {
         showToast({ type: 'loading', message: '正在注销...', duration: 0 });
-        
+
         const res = await userService.deleteAccount();
         console.log('注销账户响应:', res);
         if (res.data.code === 200) {
           showSuccessToast('账户已永久注销');
-          
+
           userStore.logout();
-          
+
           setTimeout(() => {
             router.push('/register');
           }, 100);
-          
+
         } else {
           showFailToast(res.message || '注销失败');
         }
@@ -713,7 +777,7 @@ onMounted(() => {
   font-size: 18px;
 }
 
-.danger-icon{
+.danger-icon {
   margin-right: 8px;
   color: #ee0a24;
   font-size: 18px;

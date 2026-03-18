@@ -226,8 +226,7 @@ watch(() => route.path, (newPath) => {
   if (newPath.includes('/home/introduction')) {
     currentMenuTitle.value = '介绍';
     activeMenu.value = 'introduction';
-  } else
-  if (newPath.includes('/home/dashboard')) {
+  } else if (newPath.includes('/home/dashboard')) {
     currentMenuTitle.value = '分子查询';
     activeMenu.value = 'dashboard';
   } else if (newPath.includes('/home/data')) {
@@ -236,9 +235,9 @@ watch(() => route.path, (newPath) => {
   } else if (newPath.includes('/ddi/prediction')) {
     currentMenuTitle.value = '药物预测';
     activeMenu.value = 'prediction';
-  } else if (newPath.includes('/ddi/profile')) {
-    currentMenuTitle.value = '个人资料';
-    activeMenu.value = 'profile';
+  } else if (newPath.includes('/ddi/history')) {
+    currentMenuTitle.value = '历史记录';
+    activeMenu.value = 'history';
   } else if (newPath.includes('/dsa/sider')) {
     currentMenuTitle.value = '不良预测';
     activeMenu.value = 'sider';
