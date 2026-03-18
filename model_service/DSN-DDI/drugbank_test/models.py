@@ -76,44 +76,6 @@ class MVN_DDI(nn.Module):
         return scores     
 
 #intra+inter
-class MVN_DDI_Block(nn.Module):
-    def __init__(self, n_heads, in_features, head_out_feats, final_out_feats):
-        super().__init__()
-        self.n_heads = n_heads
-        self.in_features = in_features
-        self.out_features = head_out_feats
-
-        self.feature_conv = GATConv(in_features, head_out_feats, n_heads)
-        self.intraAtt = IntraGraphAttention(head_out_feats*n_heads)
-        self.interAtt = InterGraphAttention(head_out_feats*n_heads)
-        self.readout = SAGPooling(n_heads * head_out_feats, min_score=-1)
-    
-    def forward(self, h_data,t_data,b_graph):
-     
-        h_data.x = self.feature_conv(h_data.x, h_data.edge_index)
-        t_data.x = self.feature_conv(t_data.x, t_data.edge_index)
-   
-        h_intraRep = self.intraAtt(h_data)
-        t_intraRep = self.intraAtt(t_data)
-        
-        h_interRep,t_interRep = self.interAtt(h_data,t_data,b_graph)
-        
-        h_rep = torch.cat([h_intraRep,h_interRep],1)
-        t_rep = torch.cat([t_intraRep,t_interRep],1)
-        h_data.x = h_rep
-        t_data.x = t_rep
-
-        
-        # readout
-        h_att_x, att_edge_index, att_edge_attr, h_att_batch, att_perm, h_att_scores= self.readout(h_data.x, h_data.edge_index, batch=h_data.batch)
-        t_att_x, att_edge_index, att_edge_attr, t_att_batch, att_perm, t_att_scores= self.readout(t_data.x, t_data.edge_index, batch=t_data.batch)
-      
-        h_global_graph_emb = global_add_pool(h_att_x, h_att_batch)
-        t_global_graph_emb = global_add_pool(t_att_x, t_att_batch)
-        
-
-        return h_data,t_data, h_global_graph_emb,t_global_graph_emb
-
 # class MVN_DDI_Block(nn.Module):
 #     def __init__(self, n_heads, in_features, head_out_feats, final_out_feats):
 #         super().__init__()
@@ -121,77 +83,115 @@ class MVN_DDI_Block(nn.Module):
 #         self.in_features = in_features
 #         self.out_features = head_out_feats
 #
-#         # 原有的网络层
 #         self.feature_conv = GATConv(in_features, head_out_feats, n_heads)
-#         self.intraAtt = IntraGraphAttention(head_out_feats * n_heads)
-#         self.interAtt = InterGraphAttention(head_out_feats * n_heads)
+#         self.intraAtt = IntraGraphAttention(head_out_feats*n_heads)
+#         self.interAtt = InterGraphAttention(head_out_feats*n_heads)
 #         self.readout = SAGPooling(n_heads * head_out_feats, min_score=-1)
 #
-#         # ==================== 修改部分 1: 动态特征门控 ====================
-#         # intra_rep 和 inter_rep 拼接后的维度
-#         combined_dim = head_out_feats * n_heads
-#         # 定义一个简单的门控网络，输出与拼接后维度相同的权重（0~1之间）
-#         self.gate_layer = nn.Sequential(
-#             nn.Linear(combined_dim, combined_dim),
-#             nn.Sigmoid()
-#         )
-#         # ===============================================================
+#     def forward(self, h_data,t_data,b_graph):
 #
-#         # ==================== 修改部分 2: 残差连接 ====================
-#         # 因为输入特征 in_features 与融合后特征 combined_dim 的维度可能不同，
-#         # 需要一个线性层来进行维度对齐，以便后面进行矩阵相加
-#         self.res_proj = nn.Linear(in_features, combined_dim)
-#         # ===============================================================
-#
-#     def forward(self, h_data, t_data, b_graph):
-#         # ==================== 修改部分 2: 残差连接 ====================
-#         # 保存最初始的输入特征，用于后面的残差相加
-#         h_residual = h_data.x
-#         t_residual = t_data.x
-#         # ===============================================================
-#
-#         # GAT 卷积特征提取 (维度变化: in_features -> head_out_feats * n_heads)
 #         h_data.x = self.feature_conv(h_data.x, h_data.edge_index)
 #         t_data.x = self.feature_conv(t_data.x, t_data.edge_index)
 #
-#         # 内部图特征提取
 #         h_intraRep = self.intraAtt(h_data)
 #         t_intraRep = self.intraAtt(t_data)
 #
-#         # 外部图特征提取
-#         h_interRep, t_interRep = self.interAtt(h_data, t_data, b_graph)
+#         h_interRep,t_interRep = self.interAtt(h_data,t_data,b_graph)
 #
-#         # ==================== 修改部分 1: 动态特征门控 ====================
-#         # Head (头实体) 的特征门控融合
-#         h_cat = torch.cat([h_intraRep, h_interRep], 1)  # 先进行拼接
-#         h_gate = self.gate_layer(h_cat)  # 计算门控权重
-#         h_rep = h_cat * h_gate  # 将权重乘回拼接后的特征，进行自适应过滤
+#         h_rep = torch.cat([h_intraRep,h_interRep],1)
+#         t_rep = torch.cat([t_intraRep,t_interRep],1)
+#         h_data.x = h_rep
+#         t_data.x = t_rep
 #
-#         # Tail (尾实体) 的特征门控融合
-#         t_cat = torch.cat([t_intraRep, t_interRep], 1)
-#         t_gate = self.gate_layer(t_cat)
-#         t_rep = t_cat * t_gate
-#         # ===============================================================
 #
-#         # ==================== 修改部分 2: 残差连接 ====================
-#         # 将原始输入特征经过维度对齐(res_proj)后，加到最终提取的特征(h_rep)上
-#         # 这里加上了一个激活函数 F.elu() 增加非线性表达能力
-#         h_data.x = F.elu(h_rep + self.res_proj(h_residual))
-#         t_data.x = F.elu(t_rep + self.res_proj(t_residual))
-#         # ===============================================================
-#
-#         # readout 层 (池化与全局图嵌入生成)，保持原逻辑不变
-#         h_att_x, att_edge_index, att_edge_attr, h_att_batch, att_perm, h_att_scores = self.readout(h_data.x,
-#                                                                                                    h_data.edge_index,
-#                                                                                                    batch=h_data.batch)
-#         t_att_x, att_edge_index, att_edge_attr, t_att_batch, att_perm, t_att_scores = self.readout(t_data.x,
-#                                                                                                    t_data.edge_index,
-#                                                                                                    batch=t_data.batch)
+#         # readout
+#         h_att_x, att_edge_index, att_edge_attr, h_att_batch, att_perm, h_att_scores= self.readout(h_data.x, h_data.edge_index, batch=h_data.batch)
+#         t_att_x, att_edge_index, att_edge_attr, t_att_batch, att_perm, t_att_scores= self.readout(t_data.x, t_data.edge_index, batch=t_data.batch)
 #
 #         h_global_graph_emb = global_add_pool(h_att_x, h_att_batch)
 #         t_global_graph_emb = global_add_pool(t_att_x, t_att_batch)
 #
-#         return h_data, t_data, h_global_graph_emb, t_global_graph_emb
+#
+#         return h_data,t_data, h_global_graph_emb,t_global_graph_emb
+
+class MVN_DDI_Block(nn.Module):
+    def __init__(self, n_heads, in_features, head_out_feats, final_out_feats):
+        super().__init__()
+        self.n_heads = n_heads
+        self.in_features = in_features
+        self.out_features = head_out_feats
+
+        # 原有的网络层
+        self.feature_conv = GATConv(in_features, head_out_feats, n_heads)
+        self.intraAtt = IntraGraphAttention(head_out_feats * n_heads)
+        self.interAtt = InterGraphAttention(head_out_feats * n_heads)
+        self.readout = SAGPooling(n_heads * head_out_feats, min_score=-1)
+
+        # ==================== 修改部分 1: 动态特征门控 ====================
+        # intra_rep 和 inter_rep 拼接后的维度
+        combined_dim = head_out_feats * n_heads
+        # 定义一个简单的门控网络，输出与拼接后维度相同的权重（0~1之间）
+        self.gate_layer = nn.Sequential(
+            nn.Linear(combined_dim, combined_dim),
+            nn.Sigmoid()
+        )
+        # ===============================================================
+
+        # ==================== 修改部分 2: 残差连接 ====================
+        # 因为输入特征 in_features 与融合后特征 combined_dim 的维度可能不同，
+        # 需要一个线性层来进行维度对齐，以便后面进行矩阵相加
+        self.res_proj = nn.Linear(in_features, combined_dim)
+        # ===============================================================
+
+    def forward(self, h_data, t_data, b_graph):
+        # ==================== 修改部分 2: 残差连接 ====================
+        # 保存最初始的输入特征，用于后面的残差相加
+        h_residual = h_data.x
+        t_residual = t_data.x
+        # ===============================================================
+
+        # GAT 卷积特征提取 (维度变化: in_features -> head_out_feats * n_heads)
+        h_data.x = self.feature_conv(h_data.x, h_data.edge_index)
+        t_data.x = self.feature_conv(t_data.x, t_data.edge_index)
+
+        # 内部图特征提取
+        h_intraRep = self.intraAtt(h_data)
+        t_intraRep = self.intraAtt(t_data)
+
+        # 外部图特征提取
+        h_interRep, t_interRep = self.interAtt(h_data, t_data, b_graph)
+
+        # ==================== 修改部分 1: 动态特征门控 ====================
+        # Head (头实体) 的特征门控融合
+        h_cat = torch.cat([h_intraRep, h_interRep], 1)  # 先进行拼接
+        h_gate = self.gate_layer(h_cat)  # 计算门控权重
+        h_rep = h_cat * h_gate  # 将权重乘回拼接后的特征，进行自适应过滤
+
+        # Tail (尾实体) 的特征门控融合
+        t_cat = torch.cat([t_intraRep, t_interRep], 1)
+        t_gate = self.gate_layer(t_cat)
+        t_rep = t_cat * t_gate
+        # ===============================================================
+
+        # ==================== 修改部分 2: 残差连接 ====================
+        # 将原始输入特征经过维度对齐(res_proj)后，加到最终提取的特征(h_rep)上
+        # 这里加上了一个激活函数 F.elu() 增加非线性表达能力
+        h_data.x = F.elu(h_rep + self.res_proj(h_residual))
+        t_data.x = F.elu(t_rep + self.res_proj(t_residual))
+        # ===============================================================
+
+        # readout 层 (池化与全局图嵌入生成)，保持原逻辑不变
+        h_att_x, att_edge_index, att_edge_attr, h_att_batch, att_perm, h_att_scores = self.readout(h_data.x,
+                                                                                                   h_data.edge_index,
+                                                                                                   batch=h_data.batch)
+        t_att_x, att_edge_index, att_edge_attr, t_att_batch, att_perm, t_att_scores = self.readout(t_data.x,
+                                                                                                   t_data.edge_index,
+                                                                                                   batch=t_data.batch)
+
+        h_global_graph_emb = global_add_pool(h_att_x, h_att_batch)
+        t_global_graph_emb = global_add_pool(t_att_x, t_att_batch)
+
+        return h_data, t_data, h_global_graph_emb, t_global_graph_emb
 
 
 

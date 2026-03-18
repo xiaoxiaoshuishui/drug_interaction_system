@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from config.cache_config import get_json_cache, set_cache
 
 from models.dsas import DSADrugNode, DSASideEffectNode
 from models.users import User
@@ -25,7 +26,7 @@ from utils.dsas_client import dsas_client, logger
 from config.db_config import get_db
 from utils.response import success_response
 
-router = APIRouter(prefix="/api/dsa", tags=["药物不良反应预测(MFGNN-DSA)"])
+router = APIRouter(prefix="/api/dsa", tags=["药物不良反应预测"])
 
 
 @router.post("/predict", response_model=DSAPredictionResult)
@@ -198,6 +199,16 @@ async def search_dsa_drugs(
         keyword: str = Query(..., min_length=1, description="搜索关键词"),
         db: AsyncSession = Depends(get_db)
 ):
+    # 1. 定义专属的缓存 Key，例如：dsa:search:drugs:阿司匹林
+    cache_key = f"dsa:search:drugs:{keyword}"
+
+    # 2. 尝试读取缓存
+    cached_data = await get_json_cache(cache_key)
+    if cached_data:
+        # 如果有缓存，直接返回，保护数据库
+        return success_response(data=cached_data)
+
+    # 3. 缓存未命中，查数据库
     stmt = select(DSADrugNode).where(
         or_(
             DSADrugNode.drug_name.ilike(f"%{keyword}%"),
@@ -219,6 +230,9 @@ async def search_dsa_drugs(
             "identifier": display_name  # 填入输入框的词
         })
 
+    # 4. 写入缓存。药物字典一般不变，可以缓存 7 天 (604800 秒)
+    await set_cache(cache_key, data, expire=604800)
+
     return success_response(data=data)
 
 
@@ -227,6 +241,15 @@ async def search_dsa_side_effects(
         keyword: str = Query(..., min_length=1, description="搜索关键词"),
         db: AsyncSession = Depends(get_db)
 ):
+    # 1. 缓存 Key，例如：dsa:search:se:头痛
+    cache_key = f"dsa:search:se:{keyword}"
+
+    # 2. 尝试读取缓存
+    cached_data = await get_json_cache(cache_key)
+    if cached_data:
+        return success_response(data=cached_data)
+
+    # 3. 查数据库
     stmt = select(DSASideEffectNode).where(
         or_(
             DSASideEffectNode.se_name.ilike(f"%{keyword}%"),
@@ -244,6 +267,9 @@ async def search_dsa_side_effects(
             "value": display_name,
             "en_name": s.se_name
         })
+
+    # 4. 写入缓存 (7 天)
+    await set_cache(cache_key, data, expire=604800)
 
     return success_response(data=data)
 

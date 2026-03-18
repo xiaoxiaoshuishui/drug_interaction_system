@@ -228,79 +228,9 @@ def train_word2vec_embeddings(corpus, vocab_size, embedding_dim):
         return embedding_matrix, model
 
     except ImportError:
-        print("未安装gensim，使用PyTorch实现简化版Word2Vec")
-        return train_simple_word2vec(corpus, vocab_size, embedding_dim)
+        print("未安装gensim")
+        return None, None
 
-
-# =================5. PyTorch简化版Word2Vec（备选）=================
-def train_simple_word2vec(corpus, vocab_size, embedding_dim):
-    """
-    使用PyTorch实现简化版Word2Vec
-    """
-    print("使用PyTorch训练简化版Word2Vec...")
-
-    class SimpleWord2Vec(nn.Module):
-        def __init__(self, vocab_size, embedding_dim):
-            super().__init__()
-            self.embeddings = nn.Embedding(vocab_size, embedding_dim)
-            self.linear = nn.Linear(embedding_dim, vocab_size)
-
-        def forward(self, center_word):
-            emb = self.embeddings(center_word)
-            scores = self.linear(emb)
-            return scores
-
-    # 准备训练数据
-    print("准备训练数据...")
-    center_words = []
-    context_words = []
-
-    for walk in corpus:
-        walk_ids = [int(node) for node in walk]
-        for i, center in enumerate(walk_ids):
-            # 获取上下文窗口
-            start = max(0, i - WINDOW_SIZE)
-            end = min(len(walk_ids), i + WINDOW_SIZE + 1)
-            context = walk_ids[start:end]
-            context.remove(center)  # 移除中心词
-
-            for context_word in context:
-                center_words.append(center)
-                context_words.append(context_word)
-
-    # 转换为Tensor
-    center_tensor = torch.LongTensor(center_words)
-    context_tensor = torch.LongTensor(context_words)
-
-    # 创建模型
-    model = SimpleWord2Vec(vocab_size, embedding_dim)
-    optimizer = optim.Adam(model.parameters(), lr=LR)
-    criterion = nn.CrossEntropyLoss()
-
-    # 训练
-    print("开始训练...")
-    model.train()
-    dataset = torch.utils.data.TensorDataset(center_tensor, context_tensor)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
-
-    for epoch in range(EPOCHS):
-        total_loss = 0
-        for center_batch, target_batch in tqdm(dataloader, desc=f"Epoch {epoch + 1}"):
-            optimizer.zero_grad()
-            scores = model(center_batch)
-            loss = criterion(scores, target_batch)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-
-        print(f"Epoch {epoch + 1}/{EPOCHS}, Loss: {total_loss / len(dataloader):.4f}")
-
-    # 获取嵌入
-    embedding_matrix = model.embeddings.weight.data.cpu().numpy()
-    return embedding_matrix, None
-
-
-# =================6. 主程序=================
 def main():
     print("=" * 50)
     print("简化版HIN2Vec - 异构网络节点嵌入")

@@ -28,7 +28,7 @@ parser.add_argument('--weight_decay', type=float, default=5e-4)
 parser.add_argument('--neg_samples', type=int, default=1)
 parser.add_argument('--data_size_ratio', type=int, default=1)
 parser.add_argument('--use_cuda', type=bool, default=True, choices=[0, 1])
-parser.add_argument('--pkl_name', type=str, default='drugbank_test/inductive_drugbank.pkl')
+parser.add_argument('--pkl_name', type=str, default='drugbank_test/inductive.pkl')
 
 args = parser.parse_args()
 n_atom_feats = args.n_atom_feats
@@ -49,8 +49,8 @@ print(args)
 
 ###### Dataset
 
-df_ddi_s1 = pd.read_csv('drugbank_test/inductive_data/fold3/s1.csv')
-df_ddi_s2 = pd.read_csv('drugbank_test/inductive_data/fold3/s2.csv')
+df_ddi_s1 = pd.read_csv('drugbank_test/inductive/fold3/s1.csv')
+df_ddi_s2 = pd.read_csv('drugbank_test/inductive/fold3/s2.csv')
 
 
 
@@ -64,8 +64,8 @@ s2_data = DrugDataset(s2_tup, disjoint_split=True)
 print(f" s1 with {len(s1_data)}, and s2 with {len(s2_data)}")
 
 
-s1_data_loader = DrugDataLoader(s1_data, batch_size=batch_size *3,num_workers=2)
-s2_data_loader = DrugDataLoader(s2_data, batch_size=batch_size *3,num_workers=2)
+s1_data_loader = DrugDataLoader(s1_data, batch_size=batch_size *3,num_workers=0)
+s2_data_loader = DrugDataLoader(s2_data, batch_size=batch_size *3,num_workers=0)
 
 def do_compute(batch, device, model):
         '''

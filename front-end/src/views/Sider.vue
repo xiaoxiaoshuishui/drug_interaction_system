@@ -2,7 +2,7 @@
   <div class="dsa-wrapper">
     <van-tabs v-model:active="activeTab" type="card" color="#228be6" class="main-tabs">
 
-      <van-tab title="单条精准预测">
+      <van-tab title="单条预测">
         <div class="sider-container">
           <div class="control-panel">
             <div class="header">
@@ -84,7 +84,7 @@
         </div>
       </van-tab>
 
-      <van-tab title="批量极速筛查">
+      <van-tab title="批量筛查">
         <div class="batch-container">
           <div class="batch-header">
             <h2>批量数据导入</h2>

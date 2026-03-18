@@ -14,8 +14,7 @@ def get_maccs_fingerprint(DBid, smiles):
 
 data1 = pd.read_csv("../data/drug_name.csv")
 data2 = pd.read_csv("../data/drug_smiles.csv")
-DBid = data1["NAME"]
-smiles = data2["SMILES"]
+DBid = data1["NAME"],smiles = data2["SMILES"]
 
 Flen = len(get_maccs_fingerprint(DBid[0], smiles[0]))
 header = ['Col-{}'.format(i) for i in range(1, Flen)]
