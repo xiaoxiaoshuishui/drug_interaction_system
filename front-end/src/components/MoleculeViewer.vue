@@ -20,7 +20,7 @@ const renderMolecule = async () => {
   
   try {
     // 使用单例加载器
-    const RDKit = await rdkitLoader.load('https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js');
+    const RDKit = await rdkitLoader.load('/rdkit/RDKit_minimal.js');
     
     // 清理之前的分子
     if (currentMol) {

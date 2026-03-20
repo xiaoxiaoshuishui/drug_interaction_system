@@ -76,7 +76,7 @@ export const deletePrediction = async (id) => {
 // 批量 DDI 预测
 export const batchPredict = async (payload) => {
   try {
-    const response = await request.post('/api/ddi/predict/batch', payload);
+    const response = await request.post('/api/ddi/predict/batch', payload, { timeout: 300000 });
     return response.data || response;
   } catch (error) {
     console.error('DDI 批量预测失败:', error);
@@ -84,5 +84,15 @@ export const batchPredict = async (payload) => {
       throw new Error(error.response.data?.detail || '批量预测失败');
     }
     throw error;
+  }
+};
+
+export const searchDdiDrugs = async (keyword) => {
+  try {
+    const response = await request.get('/api/ddi/drugs/search', { params: { keyword } });
+    return response.data || response;
+  } catch (error) {
+    console.error('搜索DDI药物失败:', error);
+    return { data: [] };
   }
 };

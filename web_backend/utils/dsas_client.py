@@ -1,6 +1,7 @@
+import asyncio
 import aiohttp
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 from fastapi import HTTPException
 
 from config.cache_config import get_json_cache, set_cache
@@ -77,6 +78,50 @@ class ModelClient:
         except Exception as e:
             logger.error(f"MFGNN-DSA 请求异常: {str(e)}")
             raise HTTPException(status_code=500, detail=f"无法连接到模型服务: {str(e)}")
+
+    async def predict_batch(self, pairs: list) -> dict:
+        """
+        批量调用 MFGNN 模型服务进行 DSA 预测 (基于 aiohttp)
+        :param pairs: 包含 drug 和 se 信息的张量列表 (tensor_pairs)
+        :return: 模型服务返回的批量预测结果字典
+        """
+        try:
+            url = f"{self.base_url.rstrip('/')}/predict_batch"
+
+            # 针对批量图神经网络运算，设置较长的超时时间 (300秒 = 5分钟)
+            timeout = aiohttp.ClientTimeout(total=300.0)
+
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json={"pairs": pairs}) as response:
+                    # 检查 HTTP 状态码
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"HTTP Error {response.status}: {error_text}")
+
+                    # 解析并返回 JSON 结果
+                    return await response.json()
+
+        except asyncio.TimeoutError:
+            logger.error("DSA 批量预测请求模型服务超时 (TimeoutError)")
+            return {
+                "success": False,
+                "error_message": "模型服务处理超时，批量运算量过大，请稍后重试或减少单次批量条数",
+                "results": []
+            }
+        except aiohttp.ClientError as e:
+            logger.error(f"DSA 批量预测请求模型服务网络错误: {str(e)}")
+            return {
+                "success": False,
+                "error_message": f"模型服务网络连接错误: {str(e)}",
+                "results": []
+            }
+        except Exception as e:
+            logger.error(f"DSA 批量预测请求模型服务失败: {str(e)}")
+            return {
+                "success": False,
+                "error_message": f"底层微服务异常: {str(e)}",
+                "results": []
+            }
 
 
 # 实例化全局客户端，供路由使用

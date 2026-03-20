@@ -19,9 +19,10 @@ from crud.ddis import (
     get_ddi_prediction,
     update_ddi_prediction,
     delete_ddi_prediction,
-    check_duplicate_prediction,
     get_prediction_stats,
-    get_interaction_types, create_ddi_predictions_bulk
+    get_interaction_types,
+    create_ddi_predictions_bulk,
+    search_drugs_in_db
 )
 from utils.auth import get_current_user
 from utils.response import success_response
@@ -288,4 +289,12 @@ async def get_interaction_types_list(
     """
     types = await get_interaction_types(db)
     return types
+
+@router.get("/drugs/search", summary="模糊搜索数据库中存在的DDI药物")
+async def search_ddi_drugs_api(
+        keyword: str = Query(..., min_length=1, description="药物名称或SMILES关键词"),
+        db: AsyncSession = Depends(get_db)
+):
+    drugs = await search_drugs_in_db(db, keyword)
+    return success_response(data=drugs, message="搜索成功")
 

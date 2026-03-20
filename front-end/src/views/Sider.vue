@@ -132,7 +132,8 @@
               <div class="batch-actions">
                 <button class="add-btn" @click="addRow">➕ 添加一行组合</button>
                 <button class="predict-btn" @click="submitBatch" :disabled="batchLoading">
-                  {{ batchLoading ? '🚀 矩阵批量运算中...' : `🚀 提交批量预测 (共 ${batchForm.length} 条)` }}
+                  <span v-if="!batchLoading">🚀 提交批量预测 (共 {{ batchForm.length }} 条)</span>
+                  <span v-else>{{ loadingText }}</span>
                 </button>
               </div>
             </div>
@@ -171,7 +172,7 @@ import { ref, reactive, nextTick, onBeforeUnmount, onMounted } from 'vue';
 import * as echarts from 'echarts';
 import { showToast, showSuccessToast, showFailToast } from 'vant';
 
-import { dsaPredict, searchDsaDrugs, searchDsaSideEffects, predictDsaBatch } from '../apis/dsas';
+import { dsaPredict, searchDsaDrugs, searchDsaSideEffects, predictDsaBatch, getDsaHistory } from '../apis/dsas';
 import { useDsaPredictStore } from '../store/dsa';
 
 const store = useDsaPredictStore();
@@ -328,6 +329,10 @@ const hideSeList = () => { showSeList.value = false; };
 
 
 const batchLoading = ref(false);
+const loadingText = ref('🚀 MFGNN 矩阵运算中...');
+let progressTimer = null;
+let keepAliveTimer = null;
+let startTime = 0;
 const batchForm = ref([
   { drug_identifier: '', se_name: '' },
   { drug_identifier: '', se_name: '' }
@@ -423,8 +428,12 @@ const submitBatch = async () => {
     showToast('请至少填写一组完整的药物和副作用');
     return;
   }
+  
   batchLoading.value = true;
   batchResults.value = [];
+  
+  startLoadingFeedback();
+
   try {
     const res = await predictDsaBatch({ pairs: validPairs });
 
@@ -436,17 +445,65 @@ const submitBatch = async () => {
       if (res.data) batchResults.value = res.data;
     }
   } catch (error) {
-    showFailToast('批量预测请求失败');
     console.error(error);
+    if (error.message && (error.message.includes('timeout') || error.message.includes('网络'))) {
+      showDialog({
+        title: '请求超时',
+        message: '前端等待时间过长已断开连接，但后台可能仍在进行计算。请稍后去“预测记录”中查看结果。'
+      });
+    } else {
+      showFailToast('批量预测请求失败');
+    }
   } finally {
-    batchLoading.value = false;
+    stopLoadingFeedback();
   }
+};
+
+const startLoadingFeedback = () => {
+  startTime = Date.now();
+  
+  progressTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    
+    if (elapsed < 10) {
+      loadingText.value = `🚀 MFGNN 矩阵运算中... (${elapsed}s)`;
+    } else if (elapsed < 30) {
+      loadingText.value = `⏳ 异质图谱特征提取中... (${elapsed}s)`;
+    } else if (elapsed < 60) {
+      loadingText.value = `🔬 模型深度推理中，请勿关闭... (${elapsed}s)`;
+    } else {
+      loadingText.value = `⚠️ 运算量较大，请耐心等待... (${elapsed}s)`;
+      
+      if (elapsed === 60) {
+        showDialog({
+          title: '后台运算中',
+          message: '当前批量预测组合较多，图神经网络运算耗时较长。您可以继续在此页面等待，或者稍后前往“预测记录”页面查看结果。',
+          confirmButtonText: '我知道了'
+        });
+      }
+    }
+  }, 1000);
+
+  keepAliveTimer = setInterval(async () => {
+    try {
+      await getDsaHistory({ page: 1, page_size: 1 });
+    } catch (e) {
+      console.warn('保活心跳发送失败', e);
+    }
+  }, 60000);
+};
+
+const stopLoadingFeedback = () => {
+  if (progressTimer) clearInterval(progressTimer);
+  if (keepAliveTimer) clearInterval(keepAliveTimer);
+  batchLoading.value = false;
 };
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
   if (radarChartInstance) { radarChartInstance.dispose(); radarChartInstance = null; }
   if (graphChartInstance) { graphChartInstance.dispose(); graphChartInstance = null; }
+  stopLoadingFeedback();
 });
 
 defineExpose({ clearHistory });

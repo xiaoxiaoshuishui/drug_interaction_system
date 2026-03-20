@@ -419,7 +419,7 @@ async def startup_event():
     global MODEL, DEVICE
 
     try:
-        model_path = 'drugbank_test/inductive_drugbank.pkl'
+        model_path = 'drugbank_test/inductive.pkl'
         DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"正在加载模型到设备: {DEVICE}")
 

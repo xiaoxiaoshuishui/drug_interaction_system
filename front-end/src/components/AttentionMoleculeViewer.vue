@@ -101,7 +101,7 @@ const renderHighlightedMolecule = async () => {
   if (!props.smiles || !moleculeContainer.value) return;
   
   try {
-    const RDKit = await rdkitLoader.load('https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js');
+    const RDKit = await rdkitLoader.load('/rdkit/RDKit_minimal.js');
     
     if (currentMol) {
       currentMol.delete();

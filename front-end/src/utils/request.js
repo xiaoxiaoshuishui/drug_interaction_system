@@ -50,6 +50,29 @@ request.interceptors.request.use(
   }
 );
 
+// 添加响应拦截器
+request.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    if (error.response) {
+      if (error.response.status === 401) {
+        const userStore = useUserStore();
+        userStore.logout();
+        
+        // 如果logout()没把localStorage删干净，再补上这句
+        // localStorage.removeItem('user');
+
+        showFailToast('登录状态已过期，请重新登录');
+        
+        router.push('/login');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // 导出默认的 request 实例
 export default request;
 

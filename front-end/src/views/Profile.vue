@@ -366,34 +366,41 @@ const loadUserPredictions = async () => {
   favoritesLoading.value = true;
   
   try {
-    const [ddiRes, dsaRes] = await Promise.allSettled([
-      getDdiHistory({ page: 1, page_size: 5 }), // 获取 DDI 历史记录
-      getDsaHistory({ page: 1, page_size: 5 })  // 获取 DSA 历史记录
+    const [ddiRes, dsaRes, ddiFavRes, dsaFavRes] = await Promise.allSettled([
+      getDdiHistory({ page: 1, page_size: 5 }), 
+      getDsaHistory({ page: 1, page_size: 5 }),
+      getDdiHistory({ page: 1, page_size: 100, is_favorite: true }), // 拉取 DDI 收藏
+      getDsaHistory({ page: 1, page_size: 100, is_favorite: true })  // 拉取 DSA 收藏
     ]);
 
-    let ddiData = [];
-    let dsaData = [];
-
-    // 1. 处理 DDI 响应
     if (ddiRes.status === 'fulfilled') {
-      ddiData = ddiRes.value.data?.data || ddiRes.value.data || [];
-      ddiPredictions.value = ddiData;
+      ddiPredictions.value = ddiRes.value?.data || [];
     }
-
-    // 2. 处理 DSA 响应
     if (dsaRes.status === 'fulfilled') {
-      dsaData = dsaRes.value.data?.data || dsaRes.value.data || [];
-      dsaPredictions.value = dsaData;
+      dsaPredictions.value = dsaRes.value?.data || [];
     }
 
-    const typedDdiData = ddiData.map(item => ({ ...item, _type: 'DDI' }));
-    const typedDsaData = dsaData.map(item => ({ ...item, _type: 'DSA' }));
-    
-    let allRecords = [...typedDdiData, ...typedDsaData];
+    let allDdiFavs = [];
+    let allDsaFavs = [];
 
+    if (ddiFavRes.status === 'fulfilled') {
+      const rawData = ddiFavRes.value?.data || [];
+      allDdiFavs = rawData.map(item => ({ ...item, _type: 'DDI' }));
+    }
+    
+    if (dsaFavRes.status === 'fulfilled') {
+      const rawData = dsaFavRes.value?.data || [];
+      allDsaFavs = rawData.map(item => ({ ...item, _type: 'DSA' }));
+    }
+    
+    const allRecords = [...allDdiFavs, ...allDsaFavs];
+    
     favoritePredictions.value = allRecords.filter(item => item.is_favorite === true);
 
+    // 按时间降序排序（最新收藏的在最上面）
     favoritePredictions.value.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    console.log("当前读取到的所有收藏记录:", favoritePredictions.value);
 
   } catch (err) {
     console.error('加载预测列表失败:', err);

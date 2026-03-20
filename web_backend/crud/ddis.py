@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import hashlib
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, desc, func, case
+from sqlalchemy import select, update, delete, desc, func, case, union
 
 from models.ddis import DDIPrediction, InteractionType, DrugInfo
 from schemas.ddis import DDIPredictionRequest, DDIPredictionUpdate
@@ -329,3 +329,40 @@ async def create_ddi_predictions_bulk(
     db.add_all(db_predictions)
     await db.commit()
     return True
+
+
+async def search_drugs_in_db(db: AsyncSession, keyword: str, limit: int = 10) -> list[dict]:
+    """从历史预测记录中模糊搜索药物名称或SMILES"""
+    # 从药物 A 中搜索
+    query_a = select(
+        DDIPrediction.drug_a_name.label('name'),
+        DDIPrediction.smiles_a.label('smiles')
+    ).where(
+        (DDIPrediction.drug_a_name.ilike(f"%{keyword}%")) |
+        (DDIPrediction.smiles_a.ilike(f"%{keyword}%"))
+    ).distinct()
+
+    # 从药物 B 中搜索
+    query_b = select(
+        DDIPrediction.drug_b_name.label('name'),
+        DDIPrediction.smiles_b.label('smiles')
+    ).where(
+        (DDIPrediction.drug_b_name.ilike(f"%{keyword}%")) |
+        (DDIPrediction.smiles_b.ilike(f"%{keyword}%"))
+    ).distinct()
+
+    # 合并结果并限制返回数量
+    union_query = union(query_a, query_b).limit(limit)
+
+    result = await db.execute(union_query)
+    rows = result.all()
+
+    # 过滤空值并去重
+    drugs = []
+    seen = set()
+    for r in rows:
+        if r.name and r.smiles and r.name not in seen:
+            drugs.append({"name": r.name, "smiles": r.smiles})
+            seen.add(r.name)
+
+    return drugs

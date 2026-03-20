@@ -90,10 +90,13 @@ export const searchDsaSideEffects = async (keyword) => {
 
 export const predictDsaBatch = async (payload) => {
   try {
-    const res = await request.post('/api/dsa/predict/batch', payload);
-    return res.data || res;
+    const response = await request.post('/api/dsa/predict/batch', payload, { timeout: 300000 });
+    return response.data || response;
   } catch (error) {
-    console.error(error);
+    console.error('DSA 批量预测失败:', error);
+    if (error.response) {
+      throw new Error(error.response.data?.detail || '批量预测失败');
+    }
     throw error;
   }
 };
